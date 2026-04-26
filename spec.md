@@ -1,8 +1,12 @@
-# Blood Bowl Prototype — Spec
+# Blood Bowl Tactical Puzzle — Spec
+
+---
 
 ## Problem Statement
 
-Build a browser-based, two-player (hot-seat) Blood Bowl prototype. Two players share one browser and take alternating turns moving a single piece each. The scope is limited to: a pitch, one human player piece, one orc player piece, turn management, and movement with activation tracking.
+A browser-based Blood Bowl puzzle game. Each scenario presents a fixed pitch state (piece positions, ball position, opponent positions). The player plans a sequence of activations to move the ball carrier into the end zone. The game tracks the cumulative probability of the chosen sequence succeeding. On touchdown, the score (probability % + dice roll count) is submitted to a global leaderboard. Players compete to find the highest-probability route to a touchdown.
+
+The current prototype (hot-seat two-player free play) remains as a sandbox/dev mode. The puzzle mode is the primary product.
 
 ---
 
@@ -11,79 +15,120 @@ Build a browser-based, two-player (hot-seat) Blood Bowl prototype. Two players s
 | Layer | Technology |
 |---|---|
 | Frontend | React + TypeScript (Vite) |
-| Backend | Node.js (Express) — serves the built frontend; no game logic server-side at this stage |
-| Styling | Plain CSS (no UI framework) |
-
-The backend exists to serve the app and provide a foundation for future real-time multiplayer (WebSockets). All game state lives in React for this prototype.
+| Backend | Node.js (Express) — serves frontend, hosts leaderboard API |
+| Database | Stubbed in-memory for now; interface designed for Supabase/Postgres later |
+| Styling | Plain CSS |
 
 ---
 
-## Requirements
+## Mode 1 — Free Play (existing, keep as-is)
 
-### Pitch
-- Grid of **26 columns × 15 rows** of equal squares.
-- Rendered as an HTML/CSS grid.
-- Squares are visually distinct (alternating light/dark green, or a single green with grid lines).
-- The pitch fills the available viewport width, squares are square (aspect ratio 1:1).
+Hot-seat two-player sandbox. No scenarios, no leaderboard. Used for development and casual play.
 
-### Teams & Pieces
-- **Team 1 — Human**: one piece, movement allowance (MA) = 6. Color: blue circle.
-- **Team 2 — Orc**: one piece, movement allowance (MA) = 4. Color: red circle.
-- Starting positions: Human at column 6, row 7 (0-indexed); Orc at column 19, row 7. (Roughly opposing thirds, centre row.)
-- Pieces are rendered as filled circles centered in their square.
+---
 
-### Turn Structure
-- Game starts on **Team 1 (Human)**'s turn.
-- Each turn, the active team's piece may be activated **once**.
-- After the piece has moved (or the player clicks End Turn without moving), the turn passes to the other team.
-- An **"End Turn"** button is always visible. Clicking it immediately ends the current team's turn, even if their piece has not activated.
-- A status bar shows: whose turn it is (e.g. "Human's Turn" / "Orc's Turn") and whether the active piece has already been activated this turn.
+## Mode 2 — Puzzle Mode (new)
 
-### Selection & Movement
-- Clicking an **unactivated** piece belonging to the **active team** selects it.
-- Clicking an already-activated piece, or an opponent's piece, does nothing.
-- On selection, all squares reachable within the piece's MA are highlighted (flood-fill BFS/DFS, orthogonal + diagonal movement, 8-directional).
-- Occupied squares (containing any piece) are **impassable** — they cannot be moved through or landed on.
-- Clicking a highlighted square moves the piece there, marks it as activated, and clears the selection + highlights.
-- Clicking the selected piece again (or any non-highlighted square) deselects it without moving.
+### Scenario Definition
 
-### End Turn
-- Clicking "End Turn":
-  1. Clears selection and highlights.
-  2. Resets the active team's piece activation state (ready for next turn).
-  3. Switches active team to the other team.
+Scenarios are JSON files loaded at startup from `client/src/scenarios/`.
 
-### No Win Condition
-- No ball, no scoring, no turn counter limit. The game runs indefinitely.
+```jsonc
+{
+  "id": "scenario-001",
+  "name": "The Simple Run",
+  "description": "One blocker in the way. Find the safest path.",
+  "activeTeam": "human",
+  "pieces": [
+    { "id": "carrier", "team": "human", "name": "Blitzer", "ma": 7, "st": 3, "ag": 3, "av": 8, "skills": ["Block", "Dodge"], "position": { "col": 10, "row": 7 }, "hasBall": true },
+    { "id": "support", "team": "human", "name": "Lineman", "ma": 6, "st": 3, "ag": 3, "av": 8, "skills": [], "position": { "col": 9, "row": 6 }, "hasBall": false },
+    { "id": "opp1",    "team": "orc",   "name": "Orc Blitzer", "ma": 6, "st": 3, "ag": 3, "av": 9, "skills": ["Block"], "position": { "col": 14, "row": 7 }, "hasBall": false }
+  ]
+}
+```
+
+Fields:
+- `id` — unique string, used as leaderboard key
+- `activeTeam` — which team the player controls
+- `pieces` — full roster; opponent pieces are static (no AI, no activation)
+- `hasBall` — exactly one piece starts with the ball
+
+### Ball
+
+- The ball is displayed on the pitch as a distinct marker on its carrier's square.
+- Ball carrier is visually distinguished (e.g. star or ring on the piece).
+- Ball mechanics beyond carrying (pickup, passing) are **deferred** — implemented in a later iteration.
+
+### Touchdown Condition
+
+- When the ball carrier's planned path ends in the opponent's end zone (col 25 for human team, col 0 for orc team) and the player clicks **End Turn**, the move is treated as a touchdown attempt.
+- All queued dodge rolls are resolved. If all succeed, touchdown is scored and the submission flow triggers.
+- If any dodge fails, the attempt fails (no submission).
+
+### Probability Tracking
+
+- Every dice roll required along the sequence contributes to a running cumulative probability (product of individual success chances).
+- Displayed live as the player plans: e.g. "Success chance: 67%".
+- On touchdown, the final probability and dice roll count are locked in.
+
+### Submission Flow
+
+1. Touchdown confirmed → modal shows final probability % and dice count.
+2. Player enters a display name.
+3. Score submitted to leaderboard API: `POST /api/leaderboard/:scenarioId` with `{ name, probability, diceCount, sequence }`.
+4. Leaderboard shown immediately after submission.
+
+### Leaderboard
+
+- Per scenario, ranked by **probability % descending**, tiebroken by **dice count ascending** (fewer rolls = cleaner play).
+- Shows: rank, name, probability %, dice count, date.
+- Accessible from the scenario select screen at any time.
+- API: `GET /api/leaderboard/:scenarioId` returns top 20 entries.
+
+### Leaderboard API (stubbed)
+
+The Express server exposes:
+
+```
+GET  /api/leaderboard/:scenarioId   → top 20 entries (in-memory for now)
+POST /api/leaderboard/:scenarioId   → submit a score
+```
+
+In-memory store is replaced with a real database (Supabase/Postgres) in a later iteration without changing the API contract.
 
 ---
 
 ## Acceptance Criteria
 
-1. A 26×15 green grid renders on load.
-2. A blue circle (Human) and red circle (Orc) appear at their starting positions.
-3. On Human's turn, clicking the blue circle highlights up to 6 reachable squares (BFS, blocked by the orc's square).
-4. Clicking a highlighted square moves the piece there; highlights clear; piece is marked activated.
-5. Clicking the activated piece again does nothing.
-6. Clicking "End Turn" switches to Orc's turn; the orc piece is now selectable.
-7. On Orc's turn, clicking the red circle highlights up to 4 reachable squares.
-8. Orc moves; "End Turn" returns to Human's turn with Human piece re-activatable.
-9. Neither piece can move to or through the square occupied by the other.
-10. The status bar always reflects the correct active team and activation state.
+### Scenario loading
+1. Scenarios are read from JSON files in `client/src/scenarios/` at build time.
+2. A scenario select screen lists all available scenarios with name and description.
+3. Selecting a scenario loads the pitch with the defined piece positions and ball.
+
+### Puzzle play
+4. Only the `activeTeam` pieces are selectable; opponent pieces are static.
+5. The ball marker is visible on the carrier's square.
+6. Cumulative probability updates live as the player adds dodge steps to their path.
+7. Clicking End Turn with the ball carrier's path ending in the end zone triggers touchdown resolution.
+8. A failed dodge during touchdown resolution shows a failure modal (no submission).
+
+### Submission & leaderboard
+9. A successful touchdown shows a modal with probability % and dice count, and a name input.
+10. Submitting posts to `POST /api/leaderboard/:scenarioId`.
+11. The leaderboard screen shows entries ranked by probability desc, dice count asc.
+12. The leaderboard is accessible without playing (from scenario select).
 
 ---
 
 ## Implementation Steps
 
-1. **Scaffold project** — Vite + React + TypeScript in `client/`; Express app in `server/`; root `package.json` with scripts to run both.
-2. **Pitch component** — render a 26×15 CSS grid with styled squares.
-3. **Game state** — define TypeScript types: `Position`, `PlayerPiece`, `Team`, `GameState`. Initialise state with both pieces at starting positions, `activeTeam: 'human'`, `activated: false`.
-4. **Piece rendering** — overlay circles on the grid using absolute positioning or CSS grid placement.
-5. **Selection logic** — on square click, if the clicked square contains the active team's unactivated piece, set it as selected.
-6. **BFS reachability** — compute all squares reachable within MA from the selected piece's position, treating occupied squares as walls.
-7. **Highlight rendering** — squares in the reachable set get a highlight style (e.g. semi-transparent yellow overlay).
-8. **Move execution** — clicking a highlighted square updates piece position, sets `activated: true`, clears selection.
-9. **Deselect** — clicking a non-highlighted, non-piece square clears selection.
-10. **End Turn button + status bar** — wire up end-turn logic; render active team name and activation status.
-11. **Express server** — serve the Vite build (or proxy to Vite dev server in development).
-12. **Verify all acceptance criteria** manually.
+1. **Scenario type + loader** — define `Scenario` TypeScript type; load JSON files via Vite's `import.meta.glob`; add `hasBall` to `PlayerPiece`.
+2. **Scenario select screen** — new route/view listing scenarios with name, description, leaderboard button.
+3. **Puzzle game mode** — fork game state initialisation to load from a `Scenario`; lock opponent pieces (no selection, no activation).
+4. **Ball rendering** — display ball marker on carrier square; visually distinguish carrier piece.
+5. **Touchdown detection** — in `handleEndTurn`, check if ball carrier's planned path tip is in the end zone; trigger resolution flow.
+6. **Submission modal** — name input + probability/dice summary; calls leaderboard API on confirm.
+7. **Leaderboard API** — Express routes `GET/POST /api/leaderboard/:scenarioId`; in-memory store with the correct sort order.
+8. **Leaderboard view** — table component showing rank, name, probability %, dice count, date.
+9. **First scenario JSON** — author one playable scenario to validate the full flow end-to-end.
+10. **Wire routing** — home → scenario select → puzzle play → submission → leaderboard.

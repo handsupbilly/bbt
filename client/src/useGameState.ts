@@ -1,29 +1,19 @@
 import { useState, useCallback } from 'react';
-import type { GameState, PlayerPiece, Position, DiceResult, DiceLogEntry } from './types';
+import type { GameState, PlayerPiece, Position, DiceResult, DiceLogEntry, Scenario } from './types';
 import { computeReachable, key, neighbours } from './bfs';
 
 const TURNS_PER_HALF = 8;
+const COLS = 26;
 
-const INITIAL_PIECES: PlayerPiece[] = [
-  {
-    id: 'human', team: 'human', name: 'Lineman',
-    position: { col: 6, row: 7 },
-    ma: 6, st: 3, ag: 3, av: 8,
-    skills: ['Block'],
-    activated: false,
-  },
-  {
-    id: 'orc', team: 'orc', name: 'Orc Lineman',
-    position: { col: 19, row: 7 },
-    ma: 4, st: 3, ag: 3, av: 9,
-    skills: ['Animosity'],
-    activated: false,
-  },
+// ── Free-play initial pieces ─────────────────────────────────────────────────
+const FREE_PLAY_PIECES: PlayerPiece[] = [
+  { id: 'human', team: 'human', name: 'Lineman',     position: { col: 6,  row: 7 }, ma: 6, st: 3, ag: 3, av: 8, skills: ['Block'],     activated: false, hasBall: false },
+  { id: 'orc',   team: 'orc',   name: 'Orc Lineman', position: { col: 19, row: 7 }, ma: 4, st: 3, ag: 3, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
 ];
 
-function makeInitialState(): GameState {
+function makeBlankState(overrides: Partial<GameState> = {}): GameState {
   return {
-    pieces: INITIAL_PIECES.map(p => ({ ...p })),
+    pieces: [],
     activeTeam: 'human',
     selectedPieceId: null,
     reachableSquares: [],
@@ -42,25 +32,42 @@ function makeInitialState(): GameState {
     lastDiceResult: null,
     diceLog: [],
     pendingProb: 1,
+    isPuzzleMode: false,
+    scenarioId: null,
+    isTouchdownAttempt: false,
+    ...overrides,
   };
 }
 
+export function makeFreePlayState(): GameState {
+  return makeBlankState({ pieces: FREE_PLAY_PIECES.map(p => ({ ...p })) });
+}
+
+export function makeScenarioState(scenario: Scenario): GameState {
+  const pieces: PlayerPiece[] = scenario.pieces.map(def => ({
+    ...def,
+    activated: false,
+  }));
+  return makeBlankState({
+    pieces,
+    activeTeam: scenario.activeTeam,
+    isPuzzleMode: true,
+    scenarioId: scenario.id,
+  });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function posKey(p: Position) { return key(p); }
 
-/** Minimum squares traversed between two positions (Chebyshev / 8-directional distance). */
 function chebyshev(a: Position, b: Position): number {
   return Math.max(Math.abs(b.col - a.col), Math.abs(b.row - a.row));
 }
 
-function successChance(target: number): number {
+export function successChance(target: number): number {
   return Math.max(0, Math.min(1, (7 - target) / 6));
 }
 
-/**
- * Compute reachable squares from `fromPos` with `ma` steps remaining.
- * The piece's actual position in state is still at origin — we pass `fromPos`
- * (the tip of the planned path) as the BFS origin.
- */
 function computeHighlights(
   state: GameState,
   pieceId: string,
@@ -69,8 +76,7 @@ function computeHighlights(
 ): Pick<GameState, 'reachableSquares' | 'dodgeSquares'> {
   const piece = state.pieces.find(p => p.id === pieceId)!;
   const opponents = state.pieces.filter(p => p.team !== piece.team).map(p => p.position);
-  // Treat all other pieces as blockers (piece itself is at origin, not fromPos, so exclude by id)
-  const others = state.pieces.filter(p => p.id !== pieceId).map(p => p.position);
+  const others    = state.pieces.filter(p => p.id !== pieceId).map(p => p.position);
   const { free, dodge } = computeReachable(fromPos, remainingMa, others, opponents);
   return { reachableSquares: free, dodgeSquares: dodge };
 }
@@ -87,18 +93,21 @@ function clearSelection(state: GameState): GameState {
     pendingDodgeStep: null,
     pendingDodgeTargets: [],
     pendingProb: 1,
+    isTouchdownAttempt: false,
   };
 }
 
-/** Commit the planned path: move piece to destination, return updated pieces array. */
 function commitMove(state: GameState): GameState['pieces'] {
   if (!state.selectedPieceId || state.plannedPath.length === 0) return state.pieces;
   const dest = state.plannedPath[state.plannedPath.length - 1];
   return state.pieces.map(p =>
-    p.id === state.selectedPieceId
-      ? { ...p, position: dest, activated: true }
-      : p
+    p.id === state.selectedPieceId ? { ...p, position: dest, activated: true } : p
   );
+}
+
+/** Is `pos` a touchdown square for `team`? */
+function isTouchdownSquare(pos: Position, team: string): boolean {
+  return team === 'human' ? pos.col === COLS - 1 : pos.col === 0;
 }
 
 function advanceTurn(state: GameState): GameState {
@@ -122,22 +131,19 @@ function advanceTurn(state: GameState): GameState {
   next.lastDiceResult = null;
   next.diceLog = [];
   next.pendingProb = 1;
-  if (next.humanTurn > TURNS_PER_HALF && next.orcTurn > TURNS_PER_HALF) {
-    next.phase = next.half === 1 ? 'half_over' : 'game_over';
+  next.isTouchdownAttempt = false;
+  if (!state.isPuzzleMode) {
+    if (next.humanTurn > TURNS_PER_HALF && next.orcTurn > TURNS_PER_HALF) {
+      next.phase = next.half === 1 ? 'half_over' : 'game_over';
+    }
   }
   return next;
 }
 
-/** Is `pos` in the tackle zone of any opponent? */
-function inTackleZone(pos: Position, opponentPositions: Position[]): boolean {
-  const k = posKey(pos);
-  return opponentPositions.some(op =>
-    neighbours(op).some(n => posKey(n) === k)
-  );
-}
+// ── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useGameState() {
-  const [state, setState] = useState<GameState>(makeInitialState);
+export function useGameState(initialState: GameState) {
+  const [state, setState] = useState<GameState>(initialState);
 
   const handleSquareClick = useCallback((col: number, row: number) => {
     setState(prev => {
@@ -147,12 +153,12 @@ export function useGameState() {
       const clickedKey = posKey(clickedPos);
       const pieceOnSquare = prev.pieces.find(p => posKey(p.position) === clickedKey);
 
-      // ── Cancel: clicked the selected piece (still at origin) ──
+      // Cancel: clicked the selected piece
       if (prev.selectedPieceId && pieceOnSquare?.id === prev.selectedPieceId) {
-        return clearSelection(prev); // piece never moved, nothing to undo
+        return clearSelection(prev);
       }
 
-      // ── Free step: add to planned path ──
+      // Free step
       const isFree = prev.reachableSquares.some(p => posKey(p) === clickedKey);
       if (isFree && prev.selectedPieceId) {
         const pathTip = prev.plannedPath.length > 0
@@ -163,36 +169,23 @@ export function useGameState() {
         const newPath = [...prev.plannedPath, clickedPos];
 
         if (newRemainingMa <= 0) {
-          // MA exhausted — commit move immediately (no dodges pending from free squares)
           const pieces = prev.pieces.map(p =>
-            p.id === prev.selectedPieceId
-              ? { ...p, position: clickedPos, activated: true }
-              : p
+            p.id === prev.selectedPieceId ? { ...p, position: clickedPos, activated: true } : p
           );
           return clearSelection({ ...prev, pieces });
         }
-
         const highlights = computeHighlights(prev, prev.selectedPieceId, clickedPos, newRemainingMa);
-        return {
-          ...prev,
-          plannedPath: newPath,
-          remainingMa: newRemainingMa,
-          pendingDodgeStep: null,
-          ...highlights,
-        };
+        return { ...prev, plannedPath: newPath, remainingMa: newRemainingMa, pendingDodgeStep: null, ...highlights };
       }
 
-      // ── Dodge zone: first or second click ──
+      // Dodge zone
       const isDodge = prev.dodgeSquares.some(p => posKey(p) === clickedKey);
       if (isDodge && prev.selectedPieceId) {
         const movingPiece = prev.pieces.find(p => p.id === prev.selectedPieceId)!;
         const target = movingPiece.ag;
-
-        const isPendingThisSquare =
-          prev.pendingDodgeStep && posKey(prev.pendingDodgeStep) === clickedKey;
+        const isPendingThisSquare = prev.pendingDodgeStep && posKey(prev.pendingDodgeStep) === clickedKey;
 
         if (isPendingThisSquare) {
-          // Second click — confirm this dodge step
           const pathTip = prev.plannedPath.length > 0
             ? prev.plannedPath[prev.plannedPath.length - 1]
             : prev.originPos!;
@@ -203,45 +196,22 @@ export function useGameState() {
           const newPendingProb = prev.pendingProb * successChance(target);
 
           if (newRemainingMa <= 0) {
-            // MA exhausted — trigger dodge rolls now
             const pieces = commitMove({ ...prev, plannedPath: newPath });
             return {
-              ...prev,
-              pieces,
-              plannedPath: newPath,
-              remainingMa: newRemainingMa,
-              pendingDodgeStep: null,
-              pendingDodgeTargets: newTargets,
-              pendingProb: newPendingProb,
-              reachableSquares: [],
-              dodgeSquares: [],
-              phase: 'dodge_roll',
-              lastDiceResult: null,
-              pendingDodge: {
-                pieceId: prev.selectedPieceId,
-                destination: clickedPos,
-                target: newTargets[0],
-              },
+              ...prev, pieces, plannedPath: newPath, remainingMa: newRemainingMa,
+              pendingDodgeStep: null, pendingDodgeTargets: newTargets, pendingProb: newPendingProb,
+              reachableSquares: [], dodgeSquares: [], phase: 'dodge_roll', lastDiceResult: null,
+              pendingDodge: { pieceId: prev.selectedPieceId, destination: clickedPos, target: newTargets[0] },
             };
           }
-
           const highlights = computeHighlights(prev, prev.selectedPieceId, clickedPos, newRemainingMa);
-          return {
-            ...prev,
-            plannedPath: newPath,
-            remainingMa: newRemainingMa,
-            pendingDodgeStep: null,
-            pendingDodgeTargets: newTargets,
-            pendingProb: newPendingProb,
-            ...highlights,
-          };
+          return { ...prev, plannedPath: newPath, remainingMa: newRemainingMa, pendingDodgeStep: null, pendingDodgeTargets: newTargets, pendingProb: newPendingProb, ...highlights };
         } else {
-          // First click — mark as pending
           return { ...prev, pendingDodgeStep: clickedPos };
         }
       }
 
-      // ── Select: clicked own unactivated piece ──
+      // Select own unactivated piece (puzzle: only activeTeam)
       if (
         pieceOnSquare &&
         pieceOnSquare.team === prev.activeTeam &&
@@ -261,35 +231,47 @@ export function useGameState() {
         };
       }
 
-      // ── Deselect: anything else ──
-      if (prev.selectedPieceId) {
-        return clearSelection(prev); // piece never moved
-      }
-
+      // Deselect
+      if (prev.selectedPieceId) return clearSelection(prev);
       return prev;
     });
   }, []);
 
   const handleCancelSelection = useCallback(() => {
-    setState(prev => {
-      if (!prev.selectedPieceId) return prev;
-      return clearSelection(prev); // piece never moved during planning
-    });
+    setState(prev => prev.selectedPieceId ? clearSelection(prev) : prev);
   }, []);
 
-  // ── End Turn: commit planned path then resolve dodges ────────────────────
   const handleEndTurn = useCallback(() => {
     setState(prev => {
       if (prev.phase !== 'playing') return prev;
 
+      // Check for touchdown attempt (puzzle mode: ball carrier path ends in end zone)
+      if (prev.isPuzzleMode && prev.selectedPieceId && prev.plannedPath.length > 0) {
+        const movingPiece = prev.pieces.find(p => p.id === prev.selectedPieceId)!;
+        const dest = prev.plannedPath[prev.plannedPath.length - 1];
+        if (movingPiece.hasBall && isTouchdownSquare(dest, movingPiece.team)) {
+          const pieces = commitMove(prev);
+          if (prev.pendingDodgeTargets.length > 0) {
+            return {
+              ...prev, pieces, phase: 'dodge_roll', lastDiceResult: null,
+              isTouchdownAttempt: true,
+              pendingDodge: {
+                pieceId: prev.selectedPieceId,
+                destination: dest,
+                target: prev.pendingDodgeTargets[0],
+              },
+            };
+          }
+          // No dodges needed — immediate touchdown
+          return clearSelection({ ...prev, pieces, phase: 'touchdown', isTouchdownAttempt: false });
+        }
+      }
+
+      // Normal end turn: resolve pending dodges first
       if (prev.pendingDodgeTargets.length > 0 && prev.plannedPath.length > 0) {
-        // Commit the move visually, then roll dodges
         const pieces = commitMove(prev);
         return {
-          ...prev,
-          pieces,
-          phase: 'dodge_roll',
-          lastDiceResult: null,
+          ...prev, pieces, phase: 'dodge_roll', lastDiceResult: null,
           pendingDodge: {
             pieceId: prev.selectedPieceId ?? '',
             destination: prev.plannedPath[prev.plannedPath.length - 1],
@@ -298,7 +280,6 @@ export function useGameState() {
         };
       }
 
-      // No dodges — commit move and advance turn
       const pieces = prev.plannedPath.length > 0 ? commitMove(prev) : prev.pieces;
       return advanceTurn({ ...prev, pieces });
     });
@@ -309,8 +290,7 @@ export function useGameState() {
       if (prev.phase !== 'dodge_roll' || !prev.pendingDodge) return prev;
       const roll = Math.ceil(Math.random() * 6);
       const { target } = prev.pendingDodge;
-      const result: DiceResult = { roll, success: roll >= target, target };
-      return { ...prev, lastDiceResult: result };
+      return { ...prev, lastDiceResult: { roll, success: roll >= target, target } };
     });
   }, []);
 
@@ -321,33 +301,24 @@ export function useGameState() {
       const { pieceId } = prev.pendingDodge;
 
       const entry: DiceLogEntry = {
-        target,
-        roll,
-        success,
-        cumulativeProb: prev.diceLog.reduce(
-          (acc, e) => acc * successChance(e.target),
-          successChance(target)
-        ),
+        target, roll, success,
+        cumulativeProb: prev.diceLog.reduce((acc, e) => acc * successChance(e.target), successChance(target)),
       };
       const newLog = [...prev.diceLog, entry];
 
       if (!success) {
-        // Failed — snap piece back to origin
+        // Snap back to origin
         const pieces = prev.pieces.map(p =>
-          p.id === pieceId && prev.originPos
-            ? { ...p, position: prev.originPos, activated: false }
-            : p
+          p.id === pieceId && prev.originPos ? { ...p, position: prev.originPos, activated: false } : p
         );
-        return advanceTurn(clearSelection({
-          ...prev,
-          pieces,
-          phase: 'playing',
-          pendingDodge: null,
-          diceLog: newLog,
-        }));
+        const failed = clearSelection({ ...prev, pieces, phase: 'playing', pendingDodge: null, diceLog: newLog });
+        if (prev.isTouchdownAttempt) {
+          return { ...failed, phase: 'touchdown_fail' };
+        }
+        return advanceTurn(failed);
       }
 
-      // Success — pop next queued target
+      // Success — next queued target?
       const remainingTargets = prev.pendingDodgeTargets.slice(1);
       if (remainingTargets.length > 0) {
         return {
@@ -359,16 +330,13 @@ export function useGameState() {
         };
       }
 
-      // All dodges passed — end turn
-      const base = {
-        ...prev,
-        phase: 'playing' as const,
-        pendingDodge: null,
-        pendingDodgeTargets: [],
-        lastDiceResult: null,
-        diceLog: newLog,
-        pendingProb: 1,
-      };
+      // All dodges passed
+      const base = { ...prev, phase: 'playing' as const, pendingDodge: null, pendingDodgeTargets: [], lastDiceResult: null, diceLog: newLog, pendingProb: 1 };
+
+      if (prev.isTouchdownAttempt) {
+        return clearSelection({ ...base, phase: 'touchdown', isTouchdownAttempt: false });
+      }
+
       return advanceTurn(clearSelection(base));
     });
   }, []);
@@ -376,20 +344,12 @@ export function useGameState() {
   const handleContinue = useCallback(() => {
     setState(prev => {
       if (prev.phase === 'half_over') {
-        return { ...makeInitialState(), half: 2, score: prev.score, activeTeam: 'orc' };
+        return { ...makeFreePlayState(), half: 2 as const, score: prev.score, activeTeam: 'orc' as const };
       }
-      if (prev.phase === 'game_over') return makeInitialState();
+      if (prev.phase === 'game_over') return makeFreePlayState();
       return prev;
     });
   }, []);
 
-  return {
-    state,
-    handleSquareClick,
-    handleCancelSelection,
-    handleRollDodge,
-    handleDismissDodge,
-    handleEndTurn,
-    handleContinue,
-  };
+  return { state, setState, handleSquareClick, handleCancelSelection, handleRollDodge, handleDismissDodge, handleEndTurn, handleContinue };
 }

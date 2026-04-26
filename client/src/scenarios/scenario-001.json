@@ -1,0 +1,44 @@
+{
+  "id": "scenario-001",
+  "name": "The Simple Run",
+  "description": "You have a Blitzer with the ball near the centre. One Orc Blitzer stands in your way. Find the safest path to the end zone.",
+  "activeTeam": "human",
+  "pieces": [
+    {
+      "id": "carrier",
+      "team": "human",
+      "name": "Blitzer",
+      "ma": 7, "st": 3, "ag": 3, "av": 8,
+      "skills": ["Block", "Dodge"],
+      "position": { "col": 10, "row": 7 },
+      "hasBall": true
+    },
+    {
+      "id": "blocker",
+      "team": "human",
+      "name": "Lineman",
+      "ma": 6, "st": 3, "ag": 3, "av": 8,
+      "skills": [],
+      "position": { "col": 9, "row": 5 },
+      "hasBall": false
+    },
+    {
+      "id": "opp1",
+      "team": "orc",
+      "name": "Orc Blitzer",
+      "ma": 6, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Block"],
+      "position": { "col": 16, "row": 7 },
+      "hasBall": false
+    },
+    {
+      "id": "opp2",
+      "team": "orc",
+      "name": "Orc Lineman",
+      "ma": 4, "st": 3, "ag": 3, "av": 9,
+      "skills": [],
+      "position": { "col": 20, "row": 5 },
+      "hasBall": false
+    }
+  ]
+}

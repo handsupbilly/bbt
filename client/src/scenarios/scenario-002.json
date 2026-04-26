@@ -1,0 +1,44 @@
+{
+  "id": "scenario-002",
+  "name": "The Gauntlet",
+  "description": "Three defenders between you and glory. Every step counts — plan the route with the best odds.",
+  "activeTeam": "human",
+  "pieces": [
+    {
+      "id": "carrier",
+      "team": "human",
+      "name": "Catcher",
+      "ma": 8, "st": 2, "ag": 4, "av": 7,
+      "skills": ["Dodge", "Sprint"],
+      "position": { "col": 8, "row": 7 },
+      "hasBall": true
+    },
+    {
+      "id": "opp1",
+      "team": "orc",
+      "name": "Orc Blitzer",
+      "ma": 6, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Block"],
+      "position": { "col": 14, "row": 6 },
+      "hasBall": false
+    },
+    {
+      "id": "opp2",
+      "team": "orc",
+      "name": "Orc Blitzer",
+      "ma": 6, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Block"],
+      "position": { "col": 18, "row": 8 },
+      "hasBall": false
+    },
+    {
+      "id": "opp3",
+      "team": "orc",
+      "name": "Orc Lineman",
+      "ma": 4, "st": 3, "ag": 3, "av": 9,
+      "skills": [],
+      "position": { "col": 22, "row": 7 },
+      "hasBall": false
+    }
+  ]
+}

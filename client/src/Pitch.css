@@ -89,6 +89,28 @@
 
 .piece--activated { opacity: 0.45; }
 
+/* Ball carrier — gold ring */
+.piece--carrier {
+  border: 2px solid #f5c518;
+  box-shadow: 0 0 4px 1px rgba(245, 197, 24, 0.6);
+}
+
+/* Ball emoji sits centred inside the piece circle */
+.ball-marker {
+  position: absolute;
+  font-size: 45%;
+  line-height: 1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ball-marker--ghost {
+  opacity: 0.5;
+}
+
 /* Ghost piece at planned destination */
 .piece--ghost {
   opacity: 0.30;

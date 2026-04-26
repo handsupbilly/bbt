@@ -10,14 +10,39 @@ export interface PlayerPiece {
   team: Team;
   name: string;
   position: Position;
-  // Core Blood Bowl stats
-  ma: number;   // Movement Allowance
-  st: number;   // Strength
-  ag: number;   // Agility
-  av: number;   // Armour Value
+  ma: number;
+  st: number;
+  ag: number;
+  av: number;
   skills: string[];
   activated: boolean;
+  hasBall: boolean;
 }
+
+// ── Scenario ────────────────────────────────────────────────────────────────
+
+export interface ScenarioPieceDef {
+  id: string;
+  team: Team;
+  name: string;
+  ma: number;
+  st: number;
+  ag: number;
+  av: number;
+  skills: string[];
+  position: Position;
+  hasBall: boolean;
+}
+
+export interface Scenario {
+  id: string;
+  name: string;
+  description: string;
+  activeTeam: Team;
+  pieces: ScenarioPieceDef[];
+}
+
+// ── Game ────────────────────────────────────────────────────────────────────
 
 export interface PendingDodge {
   pieceId: string;
@@ -32,10 +57,9 @@ export type DiceResult = {
 };
 
 export interface DiceLogEntry {
-  target: number;       // needed on D6
-  roll: number;         // what was rolled
+  target: number;
+  roll: number;
   success: boolean;
-  // cumulative probability up to and including this roll (product of all success chances so far)
   cumulativeProb: number;
 }
 
@@ -43,7 +67,11 @@ export type GamePhase =
   | 'playing'
   | 'dodge_roll'
   | 'half_over'
-  | 'game_over';
+  | 'game_over'
+  | 'touchdown'       // puzzle: all dodges passed, ball in end zone
+  | 'touchdown_fail'; // puzzle: dodge failed during touchdown attempt
+
+export type AppMode = 'home' | 'freeplay' | 'puzzle' | 'leaderboard';
 
 export interface GameState {
   pieces: PlayerPiece[];
@@ -51,14 +79,10 @@ export interface GameState {
   selectedPieceId: string | null;
   reachableSquares: Position[];
   dodgeSquares: Position[];
-  // Where the piece started this activation (piece stays here until move confirmed)
   originPos: Position | null;
-  // Planned path being built (squares clicked so far, not yet committed)
   plannedPath: Position[];
   remainingMa: number;
-  // Square the player has clicked once in a dodge zone (awaiting second click to confirm)
   pendingDodgeStep: Position | null;
-  // Dodge targets queued along the planned path (rolled when move is confirmed)
   pendingDodgeTargets: number[];
   humanTurn: number;
   orcTurn: number;
@@ -67,8 +91,21 @@ export interface GameState {
   phase: GamePhase;
   pendingDodge: PendingDodge | null;
   lastDiceResult: DiceResult | null;
-  // Log of all dice rolls this turn
   diceLog: DiceLogEntry[];
-  // Running probability product for pending dodges not yet rolled (shown as preview)
   pendingProb: number;
+  // Puzzle mode extras
+  isPuzzleMode: boolean;
+  scenarioId: string | null;
+  isTouchdownAttempt: boolean; // End Turn was clicked with ball in end zone
+}
+
+// ── Leaderboard ─────────────────────────────────────────────────────────────
+
+export interface LeaderboardEntry {
+  id: string;
+  scenarioId: string;
+  name: string;
+  probability: number;   // 0–1
+  diceCount: number;
+  date: string;          // ISO string
 }

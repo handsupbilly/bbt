@@ -23,6 +23,11 @@ body,
   gap: 8px;
 }
 
+/* ── Home screen ─────────────────────────────────────────────────────── */
+.app--home {
+  overflow-y: auto;
+}
+
 /* ── HUD ─────────────────────────────────────────────────────────────── */
 .hud {
   display: flex;
@@ -34,6 +39,39 @@ body,
   flex-shrink: 0;
   flex-wrap: wrap;
 }
+
+/* Back button */
+.hud__back {
+  background: transparent;
+  border: 1px solid #444;
+  color: #888;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.hud__back:hover { color: #ccc; border-color: #666; }
+
+/* Live probability (puzzle mode) */
+.hud__prob {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.hud__prob-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #777;
+}
+.hud__prob-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #4caf50;
+}
+.hud__prob-value--risky { color: #ff9800; }
 
 /* Score block */
 .hud__score {
