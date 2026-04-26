@@ -1,0 +1,104 @@
+.pitch {
+  display: grid;
+  grid-template-columns: repeat(26, 1fr);
+  grid-template-rows: repeat(15, 1fr);
+  width: 100%;
+  aspect-ratio: 26 / 15;
+  border: 3px solid #2d5a1b;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.square {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.square--light { background-color: #4a8c2a; }
+.square--dark  { background-color: #3d7522; }
+
+/* Overlays via ::after so green always shows through */
+.square::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* Tackle zone — inset ring on the 8 squares adjacent to an opponent */
+.square--tz::after {
+  box-shadow: inset 0 0 0 2px rgba(220, 60, 60, 0.75);
+  opacity: 1;
+}
+
+/* Free movement — yellow tint */
+.square--reachable::after {
+  background-color: rgba(220, 200, 0, 0.38);
+  opacity: 1;
+}
+
+/* Dodge required — orange tint */
+.square--dodge::after {
+  background-color: rgba(220, 110, 0, 0.42);
+  opacity: 1;
+}
+
+/* First click on a dodge square — brighter, ringed */
+.square--dodge-pending::after {
+  background-color: rgba(255, 160, 0, 0.65);
+  box-shadow: inset 0 0 0 2px rgba(255, 210, 0, 0.90);
+  opacity: 1;
+}
+
+/* Path trail — subtle white tint on intermediate squares */
+.square--path::after {
+  background-color: rgba(255, 255, 255, 0.15);
+  opacity: 1;
+}
+
+/* ── Pieces ─────────────────────────────────────────────────────────── */
+.piece {
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+
+.piece--human { background-color: #1a6fc4; }
+.piece--orc   { background-color: #c43a1a; }
+
+.piece--selected {
+  border: 3px solid #fff;
+  box-shadow: 0 0 6px 2px rgba(255, 255, 255, 0.8);
+  transform: scale(1.1);
+}
+
+.piece--activated { opacity: 0.45; }
+
+/* Ghost piece at planned destination */
+.piece--ghost {
+  opacity: 0.30;
+  border: 2px dashed rgba(255, 255, 255, 0.6);
+  background-color: inherit;
+}
+
+/* ── Path dots ──────────────────────────────────────────────────────── */
+.path-dot {
+  width: 28%;
+  height: 28%;
+  border-radius: 50%;
+  position: relative;
+  z-index: 1;
+  opacity: 0.7;
+}
+
+.path-dot--human { background-color: #1a6fc4; }
+.path-dot--orc   { background-color: #c43a1a; }

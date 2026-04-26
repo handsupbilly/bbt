@@ -1,0 +1,87 @@
+.dice-log {
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #ccc;
+  min-width: 0;
+}
+
+.dice-log__title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #666;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.dice-log__entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #2a2a2a;
+}
+
+.dice-log__entry--success { border-left: 3px solid #4caf50; }
+.dice-log__entry--fail    { border-left: 3px solid #e53935; }
+.dice-log__entry--pending { border-left: 3px solid #888; opacity: 0.7; }
+
+.dice-log__face {
+  font-size: 1.1rem;
+  line-height: 1;
+  width: 1.2em;
+  text-align: center;
+}
+
+.dice-log__detail {
+  flex: 1;
+  color: #aaa;
+}
+
+.dice-log__badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: 1.4em;
+  text-align: center;
+}
+
+.dice-log__badge--ok      { color: #4caf50; }
+.dice-log__badge--fail    { color: #e53935; }
+.dice-log__badge--pending { color: #888; }
+
+.dice-log__pending {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dice-log__prob {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid #333;
+}
+
+.dice-log__prob-label {
+  color: #777;
+  font-size: 0.72rem;
+}
+
+.dice-log__prob-value {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #4caf50;
+}
+
+.dice-log__prob-value--risky {
+  color: #ff9800;
+}

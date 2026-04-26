@@ -1,0 +1,138 @@
+.panel {
+  width: 160px;
+  flex-shrink: 0;
+  background: #222;
+  border-radius: 8px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: #ccc;
+  border: 1px solid #333;
+  transition: border-color 0.2s;
+  align-self: flex-start;
+}
+
+.panel--human { border-color: #1a6fc4; }
+.panel--orc   { border-color: #c43a1a; }
+.panel--empty { border-color: #333; }
+
+/* Header */
+.panel__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+.panel__avatar--human { background-color: #1a6fc4; }
+.panel__avatar--orc   { background-color: #c43a1a; }
+
+.panel__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.panel__name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #f0f0f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel__team {
+  font-size: 0.72rem;
+  color: #888;
+}
+
+/* Divider */
+.panel__divider {
+  height: 1px;
+  background: #333;
+  margin: 0 -2px;
+}
+
+/* Stats grid */
+.panel__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+}
+
+.panel__stat {
+  background: #2a2a2a;
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: default;
+}
+
+.panel__stat-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #777;
+  font-weight: 600;
+}
+
+.panel__stat-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #f0f0f0;
+}
+
+/* Skills */
+.panel__skills-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #666;
+  font-weight: 600;
+}
+
+.panel__skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.panel__skill {
+  background: #333;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 0.75rem;
+  color: #bbb;
+}
+
+/* Status */
+.panel__status {
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.panel__status--ready { color: #4caf50; font-weight: 600; }
+.panel__status--done  { color: #888; }
+
+/* Empty state */
+.panel__empty {
+  color: #555;
+  font-size: 0.78rem;
+  text-align: center;
+  padding: 20px 0;
+  font-style: italic;
+}

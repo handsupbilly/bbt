@@ -1,0 +1,92 @@
+import type { GameState, Position } from './types';
+import { tacklezoneKeys, key } from './bfs';
+import './Pitch.css';
+
+const COLS = 26;
+const ROWS = 15;
+
+interface Props {
+  state: GameState;
+  onSquareClick: (col: number, row: number) => void;
+  onSquareHover: (col: number, row: number) => void;
+  onSquareLeave: () => void;
+}
+
+export function Pitch({ state, onSquareClick, onSquareHover, onSquareLeave }: Props) {
+  const freeKeys   = new Set(state.reachableSquares.map(key));
+  const dodgeKeys  = new Set(state.dodgeSquares.map(key));
+  const pathKeys   = new Set(state.plannedPath.map(key));
+  const pieceMap   = new Map(state.pieces.map(p => [key(p.position), p]));
+
+  // Ghost destination: last square in the planned path (if any)
+  const ghostKey = state.plannedPath.length > 0
+    ? key(state.plannedPath[state.plannedPath.length - 1])
+    : null;
+
+  // Tackle zones: only the 8 squares adjacent to each opponent, only while selecting
+  const isSelecting = !!state.selectedPieceId;
+  const opponents   = state.pieces.filter(p => p.team !== state.activeTeam).map(p => p.position);
+  // tacklezoneKeys already returns only the 8 neighbours, not the opponent square itself
+  const tzKeys      = isSelecting ? tacklezoneKeys(opponents) : new Set<string>();
+
+  const squares = [];
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const k = `${col},${row}`;
+      const piece          = pieceMap.get(k);
+      const isFree         = freeKeys.has(k);
+      const isDodge        = dodgeKeys.has(k);
+      const isInTZ         = tzKeys.has(k) && !isFree && !isDodge;
+      const isPath         = pathKeys.has(k) && !piece;
+      const isGhost        = ghostKey === k && !piece;
+      const isSelected     = piece?.id === state.selectedPieceId;
+      const isPendingDodge = state.pendingDodgeStep
+        ? key(state.pendingDodgeStep) === k
+        : false;
+
+      const classes = [
+        'square',
+        (col + row) % 2 === 0 ? 'square--light' : 'square--dark',
+        isFree         ? 'square--reachable'     : '',
+        isDodge        ? 'square--dodge'         : '',
+        isPendingDodge ? 'square--dodge-pending' : '',
+        isInTZ         ? 'square--tz'            : '',
+        isPath && !isGhost ? 'square--path'      : '',
+      ].filter(Boolean).join(' ');
+
+      squares.push(
+        <div
+          key={k}
+          className={classes}
+          onClick={() => onSquareClick(col, row)}
+          onMouseEnter={() => onSquareHover(col, row)}
+          onMouseLeave={onSquareLeave}
+        >
+          {/* Real piece — stays at origin */}
+          {piece && (
+            <div
+              className={[
+                'piece',
+                `piece--${piece.team}`,
+                isSelected      ? 'piece--selected'  : '',
+                piece.activated ? 'piece--activated' : '',
+              ].filter(Boolean).join(' ')}
+            />
+          )}
+
+          {/* Path dot — small dot on intermediate planned squares */}
+          {isPath && !isGhost && (
+            <div className={`path-dot path-dot--${state.activeTeam}`} />
+          )}
+
+          {/* Ghost piece at planned destination */}
+          {isGhost && (
+            <div className={`piece piece--${state.activeTeam} piece--ghost`} />
+          )}
+        </div>
+      );
+    }
+  }
+
+  return <div className="pitch">{squares}</div>;
+}

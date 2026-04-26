@@ -1,0 +1,185 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background-color: #1a1a1a;
+  color: #f0f0f0;
+  font-family: system-ui, sans-serif;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 10px;
+  gap: 8px;
+}
+
+/* ── HUD ─────────────────────────────────────────────────────────────── */
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #2a2a2a;
+  border-radius: 8px;
+  padding: 8px 14px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* Score block */
+.hud__score {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.hud__score-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hud__score-label--human { color: #5a9fe0; }
+.hud__score-label--orc   { color: #e07060; }
+
+.hud__score-value {
+  font-size: 1.5rem;
+  min-width: 1.2ch;
+  text-align: center;
+}
+
+.hud__score-sep {
+  color: #666;
+  font-size: 1.2rem;
+}
+
+/* Divider */
+.hud__divider {
+  width: 1px;
+  height: 28px;
+  background: #444;
+}
+
+/* Half + Turn */
+.hud__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: #aaa;
+  line-height: 1.2;
+}
+
+.hud__half { font-weight: 600; color: #ccc; }
+.hud__turn { color: #999; }
+
+/* Active team */
+.hud__team {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 1rem;
+}
+
+.hud__dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+
+.hud__dot--human { background-color: #1a6fc4; }
+.hud__dot--orc   { background-color: #c43a1a; }
+
+/* Status */
+.hud__status {
+  flex: 1;
+  font-size: 0.82rem;
+  color: #999;
+  min-width: 0;
+}
+
+/* End Turn button */
+.hud__end-turn {
+  background: #4a8c2a;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.hud__end-turn:hover:not(:disabled) { background: #5aac34; }
+.hud__end-turn:active:not(:disabled) { background: #3a7020; }
+.hud__end-turn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Legend ──────────────────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  gap: 12px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.legend__item {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.legend__item--tz    { background: rgba(200, 40, 40, 0.30);  color: #f0a0a0; }
+.legend__item--free  { background: rgba(200, 180, 0, 0.40);  color: #f0e060; }
+.legend__item--dodge { background: rgba(220, 120, 0, 0.45);  color: #f0b060; }
+
+/* ── Three-column game area ──────────────────────────────────────────── */
+.game-area {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 0;
+}
+
+.side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 160px;
+  flex-shrink: 0;
+}
+
+/* ── Pitch wrapper ───────────────────────────────────────────────────── */
+.pitch-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  align-self: center;
+}
+
+.pitch-wrapper .pitch {
+  max-width: 100%;
+  max-height: 100%;
+  width: min(100%, calc((100vh - 120px) * 26 / 15));
+}
