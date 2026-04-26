@@ -47,6 +47,11 @@ function makeInitialState(): GameState {
 
 function posKey(p: Position) { return key(p); }
 
+/** Minimum squares traversed between two positions (Chebyshev / 8-directional distance). */
+function chebyshev(a: Position, b: Position): number {
+  return Math.max(Math.abs(b.col - a.col), Math.abs(b.row - a.row));
+}
+
 function successChance(target: number): number {
   return Math.max(0, Math.min(1, (7 - target) / 6));
 }
@@ -150,7 +155,11 @@ export function useGameState() {
       // ── Free step: add to planned path ──
       const isFree = prev.reachableSquares.some(p => posKey(p) === clickedKey);
       if (isFree && prev.selectedPieceId) {
-        const newRemainingMa = prev.remainingMa - 1;
+        const pathTip = prev.plannedPath.length > 0
+          ? prev.plannedPath[prev.plannedPath.length - 1]
+          : prev.originPos!;
+        const cost = chebyshev(pathTip, clickedPos);
+        const newRemainingMa = prev.remainingMa - cost;
         const newPath = [...prev.plannedPath, clickedPos];
 
         if (newRemainingMa <= 0) {
@@ -184,7 +193,11 @@ export function useGameState() {
 
         if (isPendingThisSquare) {
           // Second click — confirm this dodge step
-          const newRemainingMa = prev.remainingMa - 1;
+          const pathTip = prev.plannedPath.length > 0
+            ? prev.plannedPath[prev.plannedPath.length - 1]
+            : prev.originPos!;
+          const cost = chebyshev(pathTip, clickedPos);
+          const newRemainingMa = prev.remainingMa - cost;
           const newPath = [...prev.plannedPath, clickedPos];
           const newTargets = [...prev.pendingDodgeTargets, target];
           const newPendingProb = prev.pendingProb * successChance(target);

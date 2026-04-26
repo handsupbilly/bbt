@@ -21,6 +21,12 @@
 .square--light { background-color: #4a8c2a; }
 .square--dark  { background-color: #3d7522; }
 
+/* End zones — human (left, blue tint) and orc (right, red tint) */
+.square--endzone-left.square--light  { background-color: #2a5a8c; }
+.square--endzone-left.square--dark   { background-color: #1e4a7a; }
+.square--endzone-right.square--light { background-color: #8c2a2a; }
+.square--endzone-right.square--dark  { background-color: #7a1e1e; }
+
 /* Overlays via ::after so green always shows through */
 .square::after {
   content: '';

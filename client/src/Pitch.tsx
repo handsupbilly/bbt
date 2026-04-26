@@ -44,9 +44,12 @@ export function Pitch({ state, onSquareClick, onSquareHover, onSquareLeave }: Pr
         ? key(state.pendingDodgeStep) === k
         : false;
 
+      const isEndZone = col === 0 || col === COLS - 1;
+
       const classes = [
         'square',
         (col + row) % 2 === 0 ? 'square--light' : 'square--dark',
+        isEndZone      ? (col === 0 ? 'square--endzone-left' : 'square--endzone-right') : '',
         isFree         ? 'square--reachable'     : '',
         isDodge        ? 'square--dodge'         : '',
         isPendingDodge ? 'square--dodge-pending' : '',
