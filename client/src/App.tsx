@@ -22,7 +22,8 @@ export default function App() {
   const [submitPending, setSubmitPending] = useState(false);
 
   // Game state — reinitialised when mode/scenario changes
-  const { state, setState, handleSquareClick, handleCancelSelection,
+  const { state, setState, handleSquareClick, handleSquareHover: hookSquareHover,
+          handleSquareLeave: hookSquareLeave, handleCancelSelection,
           handleRollDodge, handleDismissDodge, handleEndTurn, handleContinue }
     = useGameState(makeFreePlayState());
 
@@ -50,14 +51,20 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [handleCancelSelection]);
 
-  // Hover state for right panel
+  // Hover state for right panel (opponent info) — combined with movement hover
   const [hoveredOpponent, setHoveredOpponent] = useState<PlayerPiece | null>(null);
   const handleSquareHover = useCallback((col: number, row: number) => {
+    // Update movement preview in game state
+    hookSquareHover(col, row);
+    // Update opponent panel
     const k = key({ col, row });
     const piece = state.pieces.find(p => key(p.position) === k);
     setHoveredOpponent(piece && piece.team !== state.activeTeam ? piece : null);
-  }, [state.pieces, state.activeTeam]);
-  const handleSquareLeave = useCallback(() => setHoveredOpponent(null), []);
+  }, [hookSquareHover, state.pieces, state.activeTeam]);
+  const handleSquareLeave = useCallback(() => {
+    hookSquareLeave();
+    setHoveredOpponent(null);
+  }, [hookSquareLeave]);
 
   // Submission handler
   const handleSubmit = useCallback(async (name: string) => {

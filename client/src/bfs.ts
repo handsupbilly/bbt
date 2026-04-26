@@ -18,9 +18,6 @@ export function fromKey(k: string): Position {
   return { col, row };
 }
 
-/**
- * Returns the 8 adjacent squares of `pos` that are on the pitch.
- */
 export function neighbours(pos: Position): Position[] {
   const result: Position[] = [];
   for (const [dc, dr] of DIRS) {
@@ -33,10 +30,6 @@ export function neighbours(pos: Position): Position[] {
   return result;
 }
 
-/**
- * Returns the set of squares adjacent to any opponent piece —
- * i.e. squares that are in at least one tackle zone.
- */
 export function tacklezoneKeys(opponentPositions: Position[]): Set<string> {
   const tz = new Set<string>();
   for (const op of opponentPositions) {
@@ -47,53 +40,27 @@ export function tacklezoneKeys(opponentPositions: Position[]): Set<string> {
   return tz;
 }
 
-/**
- * Count how many opponent tackle zones cover `pos`.
- */
-export function countTackleZones(pos: Position, opponentPositions: Position[]): number {
-  let count = 0;
-  for (const op of opponentPositions) {
-    for (const n of neighbours(op)) {
-      if (key(n) === key(pos)) { count++; break; }
-    }
-  }
-  return count;
-}
+// ── Reachable flood-fill (for highlighting all reachable squares) ─────────────
 
 export interface ReachResult {
-  /** Squares reachable with no dodge needed */
   free: Position[];
-  /** Squares reachable only via a dodge roll */
   dodge: Position[];
+  // All reachable keys (free + dodge) for quick lookup
+  reachableKeys: Set<string>;
 }
 
-/**
- * BFS from `origin` up to `ma` steps.
- *
- * Rules:
- * - Occupied squares (any piece) are impassable.
- * - Leaving a square that is in an opponent's tackle zone requires a dodge roll.
- *   For simplicity, we treat the entire path as either free or dodge:
- *   any square reachable only via a path that passes through a TZ is a "dodge square".
- * - A square is "free" if it can be reached without ever leaving a TZ-covered square.
- * - A square is "dodge" if every path to it requires leaving at least one TZ-covered square.
- *
- * We track two BFS frontiers: one that has never triggered a dodge, one that has.
- */
 export function computeReachable(
   origin: Position,
   ma: number,
-  allPiecePositions: Position[],   // all pieces except the moving one
+  allPiecePositions: Position[],
   opponentPositions: Position[],
 ): ReachResult {
   const blockedKeys = new Set(allPiecePositions.map(key));
   const tzKeys = tacklezoneKeys(opponentPositions);
   const originKey = key(origin);
 
-  // BFS state: for each square, track minimum steps and whether a dodge was needed
-  // We use two visited sets: "reached cleanly" and "reached via dodge"
-  const cleanDist = new Map<string, number>();   // reached without any dodge
-  const dodgeDist = new Map<string, number>();   // reached only via dodge path
+  const cleanDist = new Map<string, number>();
+  const dodgeDist = new Map<string, number>();
 
   type Node = { pos: Position; steps: number; dodged: boolean };
   const queue: Node[] = [{ pos: origin, steps: 0, dodged: false }];
@@ -109,8 +76,6 @@ export function computeReachable(
       const nk = key(next);
       if (blockedKeys.has(nk)) continue;
 
-      // Does moving from pos to next require a dodge?
-      // In BB: you must dodge when leaving a square in a tackle zone.
       const needsDodge = dodged || leavingTZ;
 
       if (!needsDodge) {
@@ -118,7 +83,6 @@ export function computeReachable(
         cleanDist.set(nk, steps + 1);
         queue.push({ pos: next, steps: steps + 1, dodged: false });
       } else {
-        // Already in dodge path — only add if not already reached cleanly or via dodge
         if (cleanDist.has(nk) || dodgeDist.has(nk)) continue;
         dodgeDist.set(nk, steps + 1);
         queue.push({ pos: next, steps: steps + 1, dodged: true });
@@ -128,13 +92,90 @@ export function computeReachable(
 
   const free: Position[] = [];
   const dodge: Position[] = [];
+  const reachableKeys = new Set<string>();
 
   for (const [k] of cleanDist) {
-    if (k !== originKey) free.push(fromKey(k));
+    if (k !== originKey) { free.push(fromKey(k)); reachableKeys.add(k); }
   }
   for (const [k] of dodgeDist) {
-    dodge.push(fromKey(k));
+    dodge.push(fromKey(k)); reachableKeys.add(k);
   }
 
-  return { free, dodge };
+  return { free, dodge, reachableKeys };
+}
+
+// ── Shortest path finder (for hover preview, FFB-style) ───────────────────────
+
+export interface PathStep {
+  pos: Position;
+  /** True if leaving the *previous* square required a dodge */
+  requiresDodge: boolean;
+}
+
+/**
+ * Find the shortest path (Chebyshev distance) from `origin` to `target`
+ * within `ma` steps, avoiding blocked squares.
+ *
+ * Returns the sequence of squares from origin (exclusive) to target (inclusive),
+ * each annotated with whether a dodge is required to enter it.
+ *
+ * Returns null if target is unreachable within ma.
+ */
+export function findShortestPath(
+  origin: Position,
+  target: Position,
+  ma: number,
+  allPiecePositions: Position[],
+  opponentPositions: Position[],
+): PathStep[] | null {
+  const blockedKeys = new Set(allPiecePositions.map(key));
+  const tzKeys = tacklezoneKeys(opponentPositions);
+  const targetKey = key(target);
+  const originKey = key(origin);
+
+  if (blockedKeys.has(targetKey)) return null;
+
+  // Dijkstra: state = (pos, steps, dodged)
+  // We want minimum steps to reach target
+  type State = { pos: Position; steps: number; dodged: boolean; path: PathStep[] };
+
+  // visited: key -> minimum steps reached (clean preferred over dodge)
+  const visited = new Map<string, number>();
+
+  // Priority queue (min-heap by steps) — simple array sort for small grids
+  const queue: State[] = [{ pos: origin, steps: 0, dodged: false, path: [] }];
+  visited.set(originKey, 0);
+
+  while (queue.length > 0) {
+    // Pop lowest-cost state
+    queue.sort((a, b) => a.steps - b.steps);
+    const { pos, steps, dodged, path } = queue.shift()!;
+
+    if (key(pos) === targetKey) {
+      return path;
+    }
+
+    if (steps >= ma) continue;
+
+    const leavingTZ = tzKeys.has(key(pos));
+
+    for (const next of neighbours(pos)) {
+      const nk = key(next);
+      if (blockedKeys.has(nk)) continue;
+
+      const newSteps = steps + 1;
+      if (newSteps > ma) continue;
+
+      const needsDodge = dodged || leavingTZ;
+      const stateKey = `${nk}:${needsDodge ? 1 : 0}`;
+
+      if (visited.has(stateKey) && visited.get(stateKey)! <= newSteps) continue;
+      visited.set(stateKey, newSteps);
+
+      const step: PathStep = { pos: next, requiresDodge: needsDodge };
+      queue.push({ pos: next, steps: newSteps, dodged: needsDodge, path: [...path, step] });
+    }
+  }
+
+  return null; // unreachable
 }

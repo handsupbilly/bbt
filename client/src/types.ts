@@ -1,3 +1,5 @@
+import type { PathStep } from './bfs';
+
 export type Team = 'human' | 'orc';
 
 export interface Position {
@@ -68,8 +70,8 @@ export type GamePhase =
   | 'dodge_roll'
   | 'half_over'
   | 'game_over'
-  | 'touchdown'       // puzzle: all dodges passed, ball in end zone
-  | 'touchdown_fail'; // puzzle: dodge failed during touchdown attempt
+  | 'touchdown'
+  | 'touchdown_fail';
 
 export type AppMode = 'home' | 'freeplay' | 'puzzle' | 'leaderboard';
 
@@ -77,12 +79,15 @@ export interface GameState {
   pieces: PlayerPiece[];
   activeTeam: Team;
   selectedPieceId: string | null;
-  reachableSquares: Position[];
-  dodgeSquares: Position[];
+  // All squares reachable within remaining MA (for click validation)
+  reachableKeys: Set<string>;
   originPos: Position | null;
-  plannedPath: Position[];
+  // Squares committed so far this activation (piece stays at origin until End Turn)
+  committedPath: Position[];
+  // Hover preview: shortest path from path tip to hovered square
+  pathPreview: PathStep[];
   remainingMa: number;
-  pendingDodgeStep: Position | null;
+  // Dodge targets queued along committed path (rolled on End Turn)
   pendingDodgeTargets: number[];
   humanTurn: number;
   orcTurn: number;
@@ -93,10 +98,9 @@ export interface GameState {
   lastDiceResult: DiceResult | null;
   diceLog: DiceLogEntry[];
   pendingProb: number;
-  // Puzzle mode extras
   isPuzzleMode: boolean;
   scenarioId: string | null;
-  isTouchdownAttempt: boolean; // End Turn was clicked with ball in end zone
+  isTouchdownAttempt: boolean;
 }
 
 // ── Leaderboard ─────────────────────────────────────────────────────────────
@@ -105,7 +109,7 @@ export interface LeaderboardEntry {
   id: string;
   scenarioId: string;
   name: string;
-  probability: number;   // 0–1
+  probability: number;
   diceCount: number;
-  date: string;          // ISO string
+  date: string;
 }

@@ -13,21 +13,31 @@ interface Props {
 }
 
 export function Pitch({ state, onSquareClick, onSquareHover, onSquareLeave }: Props) {
-  const freeKeys   = new Set(state.reachableSquares.map(key));
-  const dodgeKeys  = new Set(state.dodgeSquares.map(key));
-  const pathKeys   = new Set(state.plannedPath.map(key));
-  const pieceMap   = new Map(state.pieces.map(p => [key(p.position), p]));
+  const pieceMap = new Map(state.pieces.map(p => [key(p.position), p]));
 
-  const ghostKey = state.plannedPath.length > 0
-    ? key(state.plannedPath[state.plannedPath.length - 1])
+  // Preview path keys and their dodge status
+  const previewDodgeKeys = new Set(
+    state.pathPreview.filter(s => s.requiresDodge).map(s => key(s.pos))
+  );
+  const previewFreeKeys = new Set(
+    state.pathPreview.filter(s => !s.requiresDodge).map(s => key(s.pos))
+  );
+
+  // Ghost = last square in preview path
+  const ghostKey = state.pathPreview.length > 0
+    ? key(state.pathPreview[state.pathPreview.length - 1].pos)
     : null;
 
-  // Ghost carries ball if the selected piece has the ball
+  // Committed path dots (excluding origin and current piece position)
+  const committedKeys = new Set(state.committedPath.map(key));
+
+  // Ghost carries ball if selected piece has ball
   const selectedPiece = state.selectedPieceId
     ? state.pieces.find(p => p.id === state.selectedPieceId)
     : null;
   const ghostHasBall = selectedPiece?.hasBall ?? false;
 
+  // Tackle zones — only when a piece is selected
   const isSelecting = !!state.selectedPieceId;
   const opponents   = state.pieces.filter(p => p.team !== state.activeTeam).map(p => p.position);
   const tzKeys      = isSelecting ? tacklezoneKeys(opponents) : new Set<string>();
@@ -36,26 +46,27 @@ export function Pitch({ state, onSquareClick, onSquareHover, onSquareLeave }: Pr
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
       const k = `${col},${row}`;
-      const piece          = pieceMap.get(k);
-      const isFree         = freeKeys.has(k);
-      const isDodge        = dodgeKeys.has(k);
-      const isInTZ         = tzKeys.has(k) && !isFree && !isDodge;
-      const isPath         = pathKeys.has(k) && !piece;
+      const piece      = pieceMap.get(k);
+      const isSelected = piece?.id === state.selectedPieceId;
+      const isEndZone  = col === 0 || col === COLS - 1;
+
+      // Reachable but not in preview = dim highlight
+      const isReachable = state.reachableKeys.has(k) && !previewFreeKeys.has(k) && !previewDodgeKeys.has(k) && k !== ghostKey;
+      const isPreviewFree  = previewFreeKeys.has(k) && k !== ghostKey;
+      const isPreviewDodge = previewDodgeKeys.has(k) && k !== ghostKey;
       const isGhost        = ghostKey === k && !piece;
-      const isSelected     = piece?.id === state.selectedPieceId;
-      const isEndZone      = col === 0 || col === COLS - 1;
-      const isPendingDodge = state.pendingDodgeStep
-        ? key(state.pendingDodgeStep) === k : false;
+      const isInTZ         = tzKeys.has(k) && !isReachable && !isPreviewFree && !isPreviewDodge;
+      const isCommitted    = committedKeys.has(k) && !piece && !isGhost;
 
       const classes = [
         'square',
         (col + row) % 2 === 0 ? 'square--light' : 'square--dark',
-        isEndZone ? (col === 0 ? 'square--endzone-left' : 'square--endzone-right') : '',
-        isFree         ? 'square--reachable'     : '',
-        isDodge        ? 'square--dodge'         : '',
-        isPendingDodge ? 'square--dodge-pending' : '',
-        isInTZ         ? 'square--tz'            : '',
-        isPath && !isGhost ? 'square--path'      : '',
+        isEndZone       ? (col === 0 ? 'square--endzone-left' : 'square--endzone-right') : '',
+        isReachable     ? 'square--reachable'    : '',
+        isPreviewFree   ? 'square--preview-free' : '',
+        isPreviewDodge  ? 'square--preview-dodge': '',
+        isInTZ          ? 'square--tz'           : '',
+        isCommitted     ? 'square--path'         : '',
       ].filter(Boolean).join(' ');
 
       squares.push(
@@ -67,20 +78,18 @@ export function Pitch({ state, onSquareClick, onSquareHover, onSquareLeave }: Pr
           onMouseLeave={onSquareLeave}
         >
           {piece && (
-            <div
-              className={[
-                'piece',
-                `piece--${piece.team}`,
-                isSelected      ? 'piece--selected'  : '',
-                piece.activated ? 'piece--activated' : '',
-                piece.hasBall   ? 'piece--carrier'   : '',
-              ].filter(Boolean).join(' ')}
-            >
+            <div className={[
+              'piece',
+              `piece--${piece.team}`,
+              isSelected      ? 'piece--selected'  : '',
+              piece.activated ? 'piece--activated' : '',
+              piece.hasBall   ? 'piece--carrier'   : '',
+            ].filter(Boolean).join(' ')}>
               {piece.hasBall && <span className="ball-marker">🏈</span>}
             </div>
           )}
 
-          {isPath && !isGhost && (
+          {isCommitted && !isGhost && (
             <div className={`path-dot path-dot--${state.activeTeam}`} />
           )}
 
