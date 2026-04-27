@@ -118,6 +118,40 @@
   background-color: inherit;
 }
 
+/* ── Dodge die ──────────────────────────────────────────────────────── */
+.dodge-die {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 42%;
+  height: 42%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ── Step number labels ─────────────────────────────────────────────── */
+.step-num {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  font-size: 0.5rem;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 4;
+  user-select: none;
+}
+
+.step-num--preview {
+  color: rgba(255, 255, 255, 0.80);
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+}
+
+.step-num--committed {
+  color: rgba(255, 255, 255, 0.45);
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+}
+
 /* ── Path dots ──────────────────────────────────────────────────────── */
 .path-dot {
   width: 28%;

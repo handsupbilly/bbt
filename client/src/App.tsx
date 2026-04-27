@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useGameState, makeFreePlayState, makeScenarioState, successChance } from './useGameState';
+import { useGameState, makeFreePlayState, makeScenarioState } from './useGameState';
 import { Pitch } from './Pitch';
+import { PieceMenu, DEFAULT_ACTIONS } from './PieceMenu';
 import { PlayerPanel } from './PlayerPanel';
 import { DiceLog } from './DiceLog';
-import { DiceModal } from './DiceModal';
 import { PhaseModal } from './PhaseModal';
 import { ScenarioSelect } from './ScenarioSelect';
 import { SubmitModal } from './SubmitModal';
@@ -19,12 +19,12 @@ export default function App() {
   const [appMode, setAppMode] = useState<AppMode>('home');
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
   const [leaderboardHighlight, setLeaderboardHighlight] = useState<string | undefined>();
-  const [submitPending, setSubmitPending] = useState(false);
+
 
   // Game state — reinitialised when mode/scenario changes
   const { state, setState, handleSquareClick, handleSquareHover: hookSquareHover,
           handleSquareLeave: hookSquareLeave, handleCancelSelection,
-          handleRollDodge, handleDismissDodge, handleEndTurn, handleContinue }
+          handleEndTurn, handleContinue }
     = useGameState(makeFreePlayState());
 
   const startFreePlay = useCallback(() => {
@@ -51,6 +51,47 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [handleCancelSelection]);
 
+  // Context menu state
+  const [pieceMenu, setPieceMenu] = useState<{ piece: PlayerPiece; x: number; y: number } | null>(null);
+
+  const handlePieceClick = useCallback((col: number, row: number, x: number, y: number) => {
+    const k = key({ col, row });
+    const piece = state.pieces.find(p => key(p.position) === k);
+    if (!piece) return;
+
+    // If a piece is already selected and this is a reachable square — treat as a move waypoint
+    if (state.selectedPieceId && state.reachableKeys.has(k)) {
+      handleSquareClick(col, row);
+      return;
+    }
+
+    // Clicking the already-selected piece ends activation
+    if (piece.id === state.selectedPieceId) {
+      handleSquareClick(col, row);
+      return;
+    }
+
+    // Own unactivated piece — show context menu
+    if (piece.team === state.activeTeam && !piece.activated) {
+      setPieceMenu({ piece, x, y });
+      return;
+    }
+
+    // Anything else (opponent, activated piece) — fall through to normal click
+    handleSquareClick(col, row);
+  }, [state.pieces, state.selectedPieceId, state.reachableKeys, state.activeTeam, handleSquareClick]);
+
+  const handleMenuAction = useCallback((actionKey: string) => {
+    if (!pieceMenu) return;
+    setPieceMenu(null);
+    if (actionKey === 'move') {
+      const { col, row } = pieceMenu.piece.position;
+      handleSquareClick(col, row);
+    }
+  }, [pieceMenu, handleSquareClick]);
+
+  const dismissMenu = useCallback(() => setPieceMenu(null), []);
+
   // Hover state for right panel (opponent info) — combined with movement hover
   const [hoveredOpponent, setHoveredOpponent] = useState<PlayerPiece | null>(null);
   const handleSquareHover = useCallback((col: number, row: number) => {
@@ -69,34 +110,24 @@ export default function App() {
   // Submission handler
   const handleSubmit = useCallback(async (name: string) => {
     if (!activeScenario) return;
-    setSubmitPending(true);
+    const cumulativeProb = state.actionLog.length > 0
+      ? state.actionLog[state.actionLog.length - 1].cumulativeProb
+      : 1;
+    const dodgeCount = state.actionLog.filter(e => e.dodgeTarget !== null).length;
     try {
-      const prob = state.diceLog.length > 0
-        ? state.diceLog[state.diceLog.length - 1].cumulativeProb
-        : 1;
-      const entry = await submitScore(activeScenario.id, name, prob, state.diceLog.length);
+      const entry = await submitScore(activeScenario.id, name, cumulativeProb, dodgeCount);
       setLeaderboardHighlight(entry.id);
       setState(s => ({ ...s, phase: 'playing' }));
       setAppMode('leaderboard');
     } catch {
-      // submission failed — still go to leaderboard
       setAppMode('leaderboard');
-    } finally {
-      setSubmitPending(false);
     }
-  }, [activeScenario, state.diceLog, setState]);
+  }, [activeScenario, state.actionLog, setState]);
 
   const handleSkipSubmit = useCallback(() => {
     setState(s => ({ ...s, phase: 'playing' }));
     setAppMode('home');
   }, [setState]);
-
-  const handleTouchdownFail = useCallback(() => {
-    // Reset puzzle to initial state
-    if (activeScenario) {
-      setState(makeScenarioState(activeScenario));
-    }
-  }, [activeScenario, setState]);
 
   // ── Render: non-game screens ─────────────────────────────────────────────
   if (appMode === 'home') {
@@ -139,13 +170,11 @@ export default function App() {
   const currentTurn = state.activeTeam === 'human' ? state.humanTurn : state.orcTurn;
   const displayTurn = Math.min(currentTurn, TURNS_PER_HALF);
 
-  // Live probability display
-  const liveProbPct = (() => {
-    const rolled = state.diceLog.length > 0
-      ? state.diceLog[state.diceLog.length - 1].cumulativeProb : 1;
-    return Math.round(rolled * state.pendingProb * 100);
-  })();
-  const showProb = state.diceLog.length > 0 || state.pendingDodgeTargets.length > 0;
+  // Live probability: committed actions × pending dodges not yet committed
+  const lastCommittedProb = state.actionLog.length > 0
+    ? state.actionLog[state.actionLog.length - 1].cumulativeProb : 1;
+  const liveProbPct = Math.round(lastCommittedProb * state.pendingProb * 100);
+  const showProb = state.actionLog.some(e => e.dodgeTarget !== null) || state.pendingDodgeTargets.length > 0;
 
   return (
     <div className="app">
@@ -200,16 +229,18 @@ export default function App() {
         <div className="side-col side-col--left">
           <PlayerPanel piece={selectedPiece} side="left" />
           <DiceLog
-            log={state.diceLog}
+            log={state.actionLog}
             pendingProb={state.pendingProb}
             pendingTargets={state.pendingDodgeTargets}
           />
+
         </div>
 
         <main className="pitch-wrapper">
           <Pitch
             state={state}
             onSquareClick={handleSquareClick}
+            onPieceClick={handlePieceClick}
             onSquareHover={handleSquareHover}
             onSquareLeave={handleSquareLeave}
           />
@@ -220,41 +251,30 @@ export default function App() {
         </div>
       </div>
 
-      {/* Dodge modal */}
-      {state.phase === 'dodge_roll' && state.pendingDodge && (
-        <DiceModal
-          pending={state.pendingDodge}
-          lastResult={state.lastDiceResult}
-          onRoll={handleRollDodge}
-          onDismiss={handleDismissDodge}
-        />
-      )}
-
       {/* Free-play half/game over */}
       {(state.phase === 'half_over' || state.phase === 'game_over') && (
         <PhaseModal state={state} onContinue={handleContinue} />
       )}
 
-      {/* Puzzle: touchdown — submit score */}
-      {state.phase === 'touchdown' && state.isPuzzleMode && (
+      {/* Touchdown — show summary and submit score */}
+      {state.phase === 'touchdown' && (
         <SubmitModal
-          probability={state.diceLog.length > 0
-            ? state.diceLog[state.diceLog.length - 1].cumulativeProb : 1}
-          diceCount={state.diceLog.length}
+          actionLog={state.actionLog}
           onSubmit={handleSubmit}
           onDismiss={handleSkipSubmit}
         />
       )}
 
-      {/* Puzzle: touchdown failed */}
-      {state.phase === 'touchdown_fail' && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <h2 className="modal__title">Dodge Failed!</h2>
-            <p className="modal__desc">The ball carrier was brought down. Try a different route.</p>
-            <button className="modal__roll-btn" onClick={handleTouchdownFail}>Try Again</button>
-          </div>
-        </div>
+      {/* Piece context menu */}
+      {pieceMenu && (
+        <PieceMenu
+          piece={pieceMenu.piece}
+          x={pieceMenu.x}
+          y={pieceMenu.y}
+          actions={DEFAULT_ACTIONS}
+          onAction={handleMenuAction}
+          onDismiss={dismissMenu}
+        />
       )}
     </div>
   );

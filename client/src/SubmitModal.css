@@ -1,3 +1,64 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: #2a2a2a;
+  border: 2px solid #4a4a4a;
+  border-radius: 12px;
+  padding: 32px 40px;
+  text-align: center;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.modal__title {
+  font-size: 1.3rem;
+  color: #f0f0f0;
+}
+
+.modal__desc {
+  color: #bbb;
+  font-size: 0.95rem;
+}
+
+.modal__roll-btn {
+  background: #1a6fc4;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 32px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modal__roll-btn:hover:not(:disabled) { background: #2080d8; }
+.modal__roll-btn:disabled { opacity: 0.4; cursor: default; }
+
+.modal__continue-btn {
+  background: #444;
+  color: #f0f0f0;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 28px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modal__continue-btn:hover { background: #555; }
+
 .submit-modal__td {
   font-size: 1.8rem;
   font-weight: 800;
@@ -56,4 +117,97 @@
   display: flex;
   gap: 10px;
   justify-content: center;
+}
+
+/* ── Risky moves table ───────────────────────────────────────────────── */
+.submit-modal__moves {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #1e1e1e;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.submit-modal__moves-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.submit-modal__move-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.submit-modal__move-label {
+  flex: 1;
+  color: #ccc;
+}
+
+.submit-modal__move-dodge {
+  color: #f0a060;
+  font-weight: 700;
+  min-width: 2.5em;
+  text-align: right;
+}
+
+.submit-modal__move-prob {
+  color: #888;
+  min-width: 3em;
+  text-align: right;
+}
+
+.submit-modal__cum-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #333;
+}
+
+.submit-modal__cum-label {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.submit-modal__cum-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #4caf50;
+}
+
+.submit-modal__cum-value--risky { color: #ff9800; }
+
+.submit-modal__no-risk {
+  color: #4caf50;
+  font-size: 0.9rem;
+}
+
+/* ── Score block ─────────────────────────────────────────────────────── */
+.submit-modal__score-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.submit-modal__score-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #666;
+}
+
+.submit-modal__score-value {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: #f5c518;
+  line-height: 1;
 }

@@ -1,0 +1,45 @@
+.piece-menu {
+  position: fixed;
+  z-index: 100;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  min-width: 130px;
+  overflow: hidden;
+  /* Nudge slightly so the menu appears just below-right of the click point */
+  transform: translate(4px, 4px);
+}
+
+.piece-menu__header {
+  padding: 6px 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+  border-bottom: 1px solid #383838;
+  white-space: nowrap;
+}
+
+.piece-menu__item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: #e8e8e8;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.piece-menu__item:hover:not(:disabled) {
+  background: #3a3a3a;
+}
+
+.piece-menu__item:disabled {
+  color: #555;
+  cursor: default;
+}

@@ -1,14 +1,16 @@
 import { useState, useCallback } from 'react';
-import type { GameState, PlayerPiece, Position, DiceResult, DiceLogEntry, Scenario } from './types';
+import type { GameState, PlayerPiece, Position, ActionLogEntry, Scenario } from './types';
 import { computeReachable, findShortestPath, key } from './bfs';
-import type { PathStep } from './bfs';
 
 const TURNS_PER_HALF = 8;
 const COLS = 26;
 
 const FREE_PLAY_PIECES: PlayerPiece[] = [
-  { id: 'human', team: 'human', name: 'Lineman',     position: { col: 6,  row: 7 }, ma: 6, st: 3, ag: 3, av: 8, skills: ['Block'],     activated: false, hasBall: false },
-  { id: 'orc',   team: 'orc',   name: 'Orc Lineman', position: { col: 19, row: 7 }, ma: 4, st: 3, ag: 3, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
+  // Human ball carrier: col 19, row 7 — exactly MA6 from the right end zone (col 25)
+  { id: 'human', team: 'human', name: 'Aldric Swiftfoot', position: { col: 19, row: 7 }, ma: 6, st: 3, ag: 3, av: 8, skills: ['Block'], activated: false, hasBall: true },
+  // Two orcs side by side with one square gap between them, blocking the direct path
+  { id: 'orc1',  team: 'orc',   name: 'Grukk Ironjaw',   position: { col: 21, row: 6 }, ma: 4, st: 3, ag: 3, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
+  { id: 'orc2',  team: 'orc',   name: 'Muzgash Skullkrak', position: { col: 21, row: 8 }, ma: 4, st: 3, ag: 3, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
 ];
 
 function makeBlankState(overrides: Partial<GameState> = {}): GameState {
@@ -19,6 +21,7 @@ function makeBlankState(overrides: Partial<GameState> = {}): GameState {
     reachableKeys: new Set(),
     originPos: null,
     committedPath: [],
+    walkedSquares: [],
     pathPreview: [],
     remainingMa: 0,
     pendingDodgeTargets: [],
@@ -27,13 +30,10 @@ function makeBlankState(overrides: Partial<GameState> = {}): GameState {
     half: 1,
     score: { human: 0, orc: 0 },
     phase: 'playing',
-    pendingDodge: null,
-    lastDiceResult: null,
-    diceLog: [],
     pendingProb: 1,
+    actionLog: [],
     isPuzzleMode: false,
     scenarioId: null,
-    isTouchdownAttempt: false,
     ...overrides,
   };
 }
@@ -80,11 +80,11 @@ function clearSelection(state: GameState): GameState {
     reachableKeys: new Set(),
     originPos: null,
     committedPath: [],
+    walkedSquares: [],
     pathPreview: [],
     remainingMa: 0,
     pendingDodgeTargets: [],
     pendingProb: 1,
-    isTouchdownAttempt: false,
   };
 }
 
@@ -115,13 +115,12 @@ function advanceTurn(state: GameState): GameState {
   next.reachableKeys = new Set();
   next.originPos = null;
   next.committedPath = [];
+  next.walkedSquares = [];
   next.pathPreview = [];
   next.remainingMa = 0;
   next.pendingDodgeTargets = [];
-  next.lastDiceResult = null;
-  next.diceLog = [];
   next.pendingProb = 1;
-  next.isTouchdownAttempt = false;
+  next.actionLog = [];
   if (!state.isPuzzleMode) {
     if (next.humanTurn > TURNS_PER_HALF && next.orcTurn > TURNS_PER_HALF) {
       next.phase = next.half === 1 ? 'half_over' : 'game_over';
@@ -161,7 +160,7 @@ export function useGameState(initialState: GameState) {
       const opponents = prev.pieces.filter(p => p.team !== piece.team).map(p => p.position);
       const others    = prev.pieces.filter(p => p.id !== piece.id).map(p => p.position);
 
-      const path = findShortestPath(tip, hovered, prev.remainingMa, others, opponents);
+      const path = findShortestPath(tip, hovered, prev.remainingMa, others, opponents, piece.ag);
       return { ...prev, pathPreview: path ?? [] };
     });
   }, []);
@@ -186,9 +185,22 @@ export function useGameState(initialState: GameState) {
       const clickedKey = posKey(clickedPos);
       const pieceOnSquare = prev.pieces.find(p => posKey(p.position) === clickedKey);
 
-      // Cancel: clicked the selected piece
-      if (prev.selectedPieceId && pieceOnSquare?.id === prev.selectedPieceId) {
-        return clearSelection(prev);
+      // End activation: clicked the selected piece, or double-clicked the current path tip
+      const pathTip = prev.selectedPieceId
+        ? (prev.committedPath.length > 0
+            ? prev.committedPath[prev.committedPath.length - 1]
+            : prev.originPos)
+        : null;
+      const clickedTip = pathTip && posKey(pathTip) === clickedKey;
+
+      if (prev.selectedPieceId && (pieceOnSquare?.id === prev.selectedPieceId || clickedTip)) {
+        const dest = prev.committedPath.length > 0
+          ? prev.committedPath[prev.committedPath.length - 1]
+          : null;
+        const pieces = dest
+          ? prev.pieces.map(p => p.id === prev.selectedPieceId ? { ...p, position: dest, activated: true } : p)
+          : prev.pieces.map(p => p.id === prev.selectedPieceId ? { ...p, activated: true } : p);
+        return clearSelection({ ...prev, pieces });
       }
 
       // Commit move to a reachable square
@@ -201,48 +213,85 @@ export function useGameState(initialState: GameState) {
         const opponents = prev.pieces.filter(p => p.team !== piece.team).map(p => p.position);
         const others    = prev.pieces.filter(p => p.id !== piece.id).map(p => p.position);
 
-        const path = findShortestPath(tip, clickedPos, prev.remainingMa, others, opponents);
+        const path = findShortestPath(tip, clickedPos, prev.remainingMa, others, opponents, piece.ag);
         if (!path || path.length === 0) return prev;
 
         // Deduct MA = number of steps in path
         const cost = path.length;
         const newRemainingMa = prev.remainingMa - cost;
 
-        // Collect dodge targets from this path segment
+        // Collect per-step dodge targets (proper BB2020 targets from bfs)
+        const dodgeSteps = path.filter(s => s.requiresDodge && s.dodgeTarget !== null);
         const newDodgeTargets = [
           ...prev.pendingDodgeTargets,
-          ...path.filter(s => s.requiresDodge).map(() => piece.ag),
+          ...dodgeSteps.map(s => s.dodgeTarget!),
         ];
-        const newPendingProb = path
-          .filter(s => s.requiresDodge)
-          .reduce((acc) => acc * successChance(piece.ag), prev.pendingProb);
+        // Probability of this path segment alone
+        const segmentProb = dodgeSteps
+          .reduce((acc, s) => acc * successChance(s.dodgeTarget!), 1);
+        const newPendingProb = prev.pendingProb * segmentProb;
+
+        const firstDodgeTarget = dodgeSteps.length > 0 ? dodgeSteps[0].dodgeTarget! : null;
+        const prevCumProb = prev.actionLog.length > 0
+          ? prev.actionLog[prev.actionLog.length - 1].cumulativeProb : 1;
+        const moveEntry: ActionLogEntry = {
+          kind: 'move',
+          pieceName: piece.name,
+          from: tip,
+          to: clickedPos,
+          steps: cost,
+          dodgeTarget: firstDodgeTarget,
+          actionProb: segmentProb,
+          cumulativeProb: prevCumProb * segmentProb,
+        };
 
         const newCommittedPath = [...prev.committedPath, clickedPos];
+        const newWalkedSquares = [...prev.walkedSquares, ...path.map(s => s.pos)];
+        const newActionLog = [...prev.actionLog, moveEntry];
+
+        // Touchdown: ball carrier reached the end zone — commit and end immediately
+        if (piece.hasBall && isTouchdownSquare(clickedPos, piece.team)) {
+          const pieces = prev.pieces.map(p =>
+            p.id === piece.id ? { ...p, position: clickedPos, activated: true } : p
+          );
+          return clearSelection({
+            ...prev,
+            pieces,
+            committedPath: newCommittedPath,
+            walkedSquares: newWalkedSquares,
+            pendingDodgeTargets: newDodgeTargets,
+            pendingProb: newPendingProb,
+            actionLog: newActionLog,
+            phase: 'touchdown',
+          });
+        }
 
         if (newRemainingMa <= 0) {
-          // MA exhausted — lock in, no more moves
           return {
             ...prev,
             committedPath: newCommittedPath,
+            walkedSquares: newWalkedSquares,
             remainingMa: 0,
             reachableKeys: new Set(),
             pathPreview: [],
             pendingDodgeTargets: newDodgeTargets,
             pendingProb: newPendingProb,
+            actionLog: newActionLog,
           };
         }
 
-        // Recompute reachable from new tip
         const { reachableKeys } = recomputeReachable(prev, prev.selectedPieceId, clickedPos, newRemainingMa);
 
         return {
           ...prev,
           committedPath: newCommittedPath,
+          walkedSquares: newWalkedSquares,
           remainingMa: newRemainingMa,
           reachableKeys,
           pathPreview: [],
           pendingDodgeTargets: newDodgeTargets,
           pendingProb: newPendingProb,
+          actionLog: newActionLog,
         };
       }
 
@@ -280,84 +329,15 @@ export function useGameState(initialState: GameState) {
     setState(prev => {
       if (prev.phase !== 'playing') return prev;
 
-      // Touchdown check (puzzle mode)
-      if (prev.isPuzzleMode && prev.selectedPieceId && prev.committedPath.length > 0) {
-        const movingPiece = prev.pieces.find(p => p.id === prev.selectedPieceId)!;
-        const dest = prev.committedPath[prev.committedPath.length - 1];
-        if (movingPiece.hasBall && isTouchdownSquare(dest, movingPiece.team)) {
-          const pieces = commitMove(prev);
-          if (prev.pendingDodgeTargets.length > 0) {
-            return {
-              ...prev, pieces, phase: 'dodge_roll', lastDiceResult: null,
-              isTouchdownAttempt: true,
-              pendingDodge: { pieceId: prev.selectedPieceId, destination: dest, target: prev.pendingDodgeTargets[0] },
-            };
-          }
-          return clearSelection({ ...prev, pieces, phase: 'touchdown' });
-        }
-      }
-
-      // Resolve pending dodges before ending turn
-      if (prev.pendingDodgeTargets.length > 0 && prev.committedPath.length > 0) {
-        const pieces = commitMove(prev);
-        return {
-          ...prev, pieces, phase: 'dodge_roll', lastDiceResult: null,
-          pendingDodge: {
-            pieceId: prev.selectedPieceId ?? '',
-            destination: prev.committedPath[prev.committedPath.length - 1],
-            target: prev.pendingDodgeTargets[0],
-          },
-        };
-      }
-
       const pieces = prev.committedPath.length > 0 ? commitMove(prev) : prev.pieces;
+
+      // Check if the ball carrier just reached the end zone
+      const ballCarrier = pieces.find(p => p.hasBall && p.team === prev.activeTeam);
+      if (ballCarrier && isTouchdownSquare(ballCarrier.position, ballCarrier.team)) {
+        return clearSelection({ ...prev, pieces, phase: 'touchdown' });
+      }
+
       return advanceTurn({ ...prev, pieces });
-    });
-  }, []);
-
-  const handleRollDodge = useCallback(() => {
-    setState(prev => {
-      if (prev.phase !== 'dodge_roll' || !prev.pendingDodge) return prev;
-      const roll = Math.ceil(Math.random() * 6);
-      const { target } = prev.pendingDodge;
-      return { ...prev, lastDiceResult: { roll, success: roll >= target, target } };
-    });
-  }, []);
-
-  const handleDismissDodge = useCallback(() => {
-    setState(prev => {
-      if (!prev.lastDiceResult || !prev.pendingDodge) return prev;
-      const { success, roll, target } = prev.lastDiceResult;
-      const { pieceId } = prev.pendingDodge;
-
-      const entry: DiceLogEntry = {
-        target, roll, success,
-        cumulativeProb: prev.diceLog.reduce((acc, e) => acc * successChance(e.target), successChance(target)),
-      };
-      const newLog = [...prev.diceLog, entry];
-
-      if (!success) {
-        const pieces = prev.pieces.map(p =>
-          p.id === pieceId && prev.originPos ? { ...p, position: prev.originPos, activated: false } : p
-        );
-        const failed = clearSelection({ ...prev, pieces, phase: 'playing', pendingDodge: null, diceLog: newLog });
-        return prev.isTouchdownAttempt ? { ...failed, phase: 'touchdown_fail' } : advanceTurn(failed);
-      }
-
-      const remainingTargets = prev.pendingDodgeTargets.slice(1);
-      if (remainingTargets.length > 0) {
-        return {
-          ...prev,
-          pendingDodgeTargets: remainingTargets,
-          lastDiceResult: null,
-          diceLog: newLog,
-          pendingDodge: { ...prev.pendingDodge, target: remainingTargets[0] },
-        };
-      }
-
-      const base = { ...prev, phase: 'playing' as const, pendingDodge: null, pendingDodgeTargets: [], lastDiceResult: null, diceLog: newLog, pendingProb: 1 };
-      if (prev.isTouchdownAttempt) return clearSelection({ ...base, phase: 'touchdown', isTouchdownAttempt: false });
-      return advanceTurn(clearSelection(base));
     });
   }, []);
 
@@ -369,5 +349,5 @@ export function useGameState(initialState: GameState) {
     });
   }, []);
 
-  return { state, setState, handleSquareClick, handleSquareHover, handleSquareLeave, handleCancelSelection, handleRollDodge, handleDismissDodge, handleEndTurn, handleContinue };
+  return { state, setState, handleSquareClick, handleSquareHover, handleSquareLeave, handleCancelSelection, handleEndTurn, handleContinue };
 }

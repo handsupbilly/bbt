@@ -7,7 +7,7 @@
     {
       "id": "carrier",
       "team": "human",
-      "name": "Catcher",
+      "name": "Pip Quickstride",
       "ma": 8, "st": 2, "ag": 4, "av": 7,
       "skills": ["Dodge", "Sprint"],
       "position": { "col": 8, "row": 7 },
@@ -16,7 +16,7 @@
     {
       "id": "opp1",
       "team": "orc",
-      "name": "Orc Blitzer",
+      "name": "Gorlag Smashjaw",
       "ma": 6, "st": 3, "ag": 3, "av": 9,
       "skills": ["Block"],
       "position": { "col": 14, "row": 6 },
@@ -25,7 +25,7 @@
     {
       "id": "opp2",
       "team": "orc",
-      "name": "Orc Blitzer",
+      "name": "Urgok the Foul",
       "ma": 6, "st": 3, "ag": 3, "av": 9,
       "skills": ["Block"],
       "position": { "col": 18, "row": 8 },
@@ -34,7 +34,7 @@
     {
       "id": "opp3",
       "team": "orc",
-      "name": "Orc Lineman",
+      "name": "Drokk Nailbiter",
       "ma": 4, "st": 3, "ag": 3, "av": 9,
       "skills": [],
       "position": { "col": 22, "row": 7 },

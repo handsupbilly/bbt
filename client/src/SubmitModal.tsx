@@ -1,33 +1,63 @@
 import { useState } from 'react';
-import './DiceModal.css';
+import type { ActionLogEntry } from './types';
 import './SubmitModal.css';
 
 interface Props {
-  probability: number;
-  diceCount: number;
+  actionLog: ActionLogEntry[];
   onSubmit: (name: string) => void;
   onDismiss: () => void;
 }
 
-function pct(p: number) { return `${Math.round(p * 100)}%`; }
+function pct(p: number) { return `${(p * 100).toFixed(1)}%`; }
+function colLabel(col: number) { return String.fromCharCode(65 + col); }
+function posLabel(p: { col: number; row: number }) { return `${colLabel(p.col)}${p.row + 1}`; }
 
-export function SubmitModal({ probability, diceCount, onSubmit, onDismiss }: Props) {
+function calcScore(cumulativeProb: number): number {
+  return Math.round((1000 * cumulativeProb) / 10) * 10;
+}
+
+export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
   const [name, setName] = useState('');
+
+  const riskyMoves = actionLog.filter(e => e.actionProb < 0.9999);
+  const cumulativeProb = actionLog.length > 0
+    ? actionLog[actionLog.length - 1].cumulativeProb
+    : 1;
+  const score = calcScore(cumulativeProb);
 
   return (
     <div className="modal-backdrop">
       <div className="modal submit-modal">
         <div className="submit-modal__td">🏈 TOUCHDOWN!</div>
-        <div className="submit-modal__stats">
-          <div className="submit-modal__stat">
-            <span className="submit-modal__stat-label">Success chance</span>
-            <span className="submit-modal__stat-value">{pct(probability)}</span>
+
+        {riskyMoves.length > 0 ? (
+          <div className="submit-modal__moves">
+            <div className="submit-modal__moves-title">Risky moves</div>
+            {riskyMoves.map((entry, i) => (
+              <div key={i} className="submit-modal__move-row">
+                <span className="submit-modal__move-label">
+                  {posLabel(entry.from)} → {posLabel(entry.to)}
+                </span>
+                <span className="submit-modal__move-dodge">{entry.dodgeTarget}+</span>
+                <span className="submit-modal__move-prob">{pct(entry.actionProb)}</span>
+              </div>
+            ))}
+            <div className="submit-modal__cum-row">
+              <span className="submit-modal__cum-label">Cumulative probability</span>
+              <span className={`submit-modal__cum-value${cumulativeProb < 0.5 ? ' submit-modal__cum-value--risky' : ''}`}>
+                {pct(cumulativeProb)}
+              </span>
+            </div>
           </div>
-          <div className="submit-modal__stat">
-            <span className="submit-modal__stat-label">Dice rolls</span>
-            <span className="submit-modal__stat-value">{diceCount}</span>
-          </div>
+        ) : (
+          <p className="submit-modal__no-risk">Clean run — no dodges needed!</p>
+        )}
+
+        <div className="submit-modal__score-block">
+          <span className="submit-modal__score-label">Score</span>
+          <span className="submit-modal__score-value">{score}</span>
         </div>
+
         <p className="submit-modal__prompt">Enter your name for the leaderboard:</p>
         <input
           className="submit-modal__input"

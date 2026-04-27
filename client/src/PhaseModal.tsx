@@ -1,5 +1,5 @@
 import type { GameState } from './types';
-import './DiceModal.css'; // reuse backdrop/modal styles
+import './SubmitModal.css'; // modal base styles
 
 interface Props {
   state: GameState;

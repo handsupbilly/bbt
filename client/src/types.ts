@@ -46,32 +46,22 @@ export interface Scenario {
 
 // ── Game ────────────────────────────────────────────────────────────────────
 
-export interface PendingDodge {
-  pieceId: string;
-  destination: Position;
-  target: number;
-}
-
-export type DiceResult = {
-  roll: number;
-  success: boolean;
-  target: number;
+export type ActionLogEntry = {
+  kind: 'move';
+  pieceName: string;
+  from: Position;
+  to: Position;
+  steps: number;
+  dodgeTarget: number | null;  // null = free move
+  actionProb: number;          // probability of this step alone (1 if no dodge)
+  cumulativeProb: number;      // running product up to and including this step
 };
-
-export interface DiceLogEntry {
-  target: number;
-  roll: number;
-  success: boolean;
-  cumulativeProb: number;
-}
 
 export type GamePhase =
   | 'playing'
-  | 'dodge_roll'
   | 'half_over'
   | 'game_over'
-  | 'touchdown'
-  | 'touchdown_fail';
+  | 'touchdown';
 
 export type AppMode = 'home' | 'freeplay' | 'puzzle' | 'leaderboard';
 
@@ -84,6 +74,7 @@ export interface GameState {
   originPos: Position | null;
   // Squares committed so far this activation (piece stays at origin until End Turn)
   committedPath: Position[];
+  walkedSquares: Position[];
   // Hover preview: shortest path from path tip to hovered square
   pathPreview: PathStep[];
   remainingMa: number;
@@ -94,13 +85,10 @@ export interface GameState {
   half: 1 | 2;
   score: { human: number; orc: number };
   phase: GamePhase;
-  pendingDodge: PendingDodge | null;
-  lastDiceResult: DiceResult | null;
-  diceLog: DiceLogEntry[];
-  pendingProb: number;
+  pendingProb: number;         // product of all pending dodge probabilities this turn
+  actionLog: ActionLogEntry[];
   isPuzzleMode: boolean;
   scenarioId: string | null;
-  isTouchdownAttempt: boolean;
 }
 
 // ── Leaderboard ─────────────────────────────────────────────────────────────

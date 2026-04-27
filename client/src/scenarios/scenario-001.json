@@ -7,7 +7,7 @@
     {
       "id": "carrier",
       "team": "human",
-      "name": "Blitzer",
+      "name": "Gareth Runeblade",
       "ma": 7, "st": 3, "ag": 3, "av": 8,
       "skills": ["Block", "Dodge"],
       "position": { "col": 10, "row": 7 },
@@ -16,7 +16,7 @@
     {
       "id": "blocker",
       "team": "human",
-      "name": "Lineman",
+      "name": "Oswin Tanner",
       "ma": 6, "st": 3, "ag": 3, "av": 8,
       "skills": [],
       "position": { "col": 9, "row": 5 },
@@ -25,7 +25,7 @@
     {
       "id": "opp1",
       "team": "orc",
-      "name": "Orc Blitzer",
+      "name": "Skrag the Crusher",
       "ma": 6, "st": 3, "ag": 3, "av": 9,
       "skills": ["Block"],
       "position": { "col": 16, "row": 7 },
@@ -34,7 +34,7 @@
     {
       "id": "opp2",
       "team": "orc",
-      "name": "Orc Lineman",
+      "name": "Muzgash Bonehead",
       "ma": 4, "st": 3, "ag": 3, "av": 9,
       "skills": [],
       "position": { "col": 20, "row": 5 },
