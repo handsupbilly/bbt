@@ -1,0 +1,18 @@
+services:
+  frontend:
+    name: Vite Dev Server
+    description: React frontend on port 5173
+    commands:
+      start: cd /workspaces/workspaces/client && npm install && node_modules/.bin/vite --port 5173 --host
+      ready: curl -s http://localhost:5173 > /dev/null
+    triggeredBy:
+      - postDevcontainerStart
+
+  api:
+    name: Express API
+    description: Leaderboard API on port 3001
+    commands:
+      start: cd /workspaces/workspaces/server && npm install && node index.js
+      ready: curl -s http://localhost:3001/api/leaderboard/scenario-001 > /dev/null
+    triggeredBy:
+      - postDevcontainerStart

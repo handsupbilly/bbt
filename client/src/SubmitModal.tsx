@@ -12,18 +12,16 @@ function pct(p: number) { return `${(p * 100).toFixed(1)}%`; }
 function colLabel(col: number) { return String.fromCharCode(65 + col); }
 function posLabel(p: { col: number; row: number }) { return `${colLabel(p.col)}${p.row + 1}`; }
 
-function calcScore(cumulativeProb: number): number {
-  return Math.round((1000 * cumulativeProb) / 10) * 10;
-}
+
 
 export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
   const [name, setName] = useState('');
 
-  const riskyMoves = actionLog.filter(e => e.actionProb < 0.9999);
+  const riskyMoves = actionLog.filter(e => e.dodgeTarget !== null);
   const cumulativeProb = actionLog.length > 0
     ? actionLog[actionLog.length - 1].cumulativeProb
     : 1;
-  const score = calcScore(cumulativeProb);
+
 
   return (
     <div className="modal-backdrop">
@@ -55,7 +53,7 @@ export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
 
         <div className="submit-modal__score-block">
           <span className="submit-modal__score-label">Score</span>
-          <span className="submit-modal__score-value">{score}</span>
+          <span className="submit-modal__score-value">{pct(cumulativeProb)}</span>
         </div>
 
         <p className="submit-modal__prompt">Enter your name for the leaderboard:</p>

@@ -30,6 +30,7 @@ function makeBlankState(overrides: Partial<GameState> = {}): GameState {
     half: 1,
     score: { human: 0, orc: 0 },
     phase: 'playing',
+    activationLogStart: 0,
     pendingProb: 1,
     actionLog: [],
     isPuzzleMode: false,
@@ -73,7 +74,7 @@ function recomputeReachable(
   return { reachableKeys };
 }
 
-function clearSelection(state: GameState): GameState {
+function clearSelection(state: GameState, cancelActivation = false): GameState {
   return {
     ...state,
     selectedPieceId: null,
@@ -85,6 +86,11 @@ function clearSelection(state: GameState): GameState {
     remainingMa: 0,
     pendingDodgeTargets: [],
     pendingProb: 1,
+    activationLogStart: 0,
+    // On cancel, roll back log entries added during this activation
+    actionLog: cancelActivation
+      ? state.actionLog.slice(0, state.activationLogStart)
+      : state.actionLog,
   };
 }
 
@@ -120,6 +126,7 @@ function advanceTurn(state: GameState): GameState {
   next.remainingMa = 0;
   next.pendingDodgeTargets = [];
   next.pendingProb = 1;
+  next.activationLogStart = 0;
   next.actionLog = [];
   if (!state.isPuzzleMode) {
     if (next.humanTurn > TURNS_PER_HALF && next.orcTurn > TURNS_PER_HALF) {
@@ -197,10 +204,12 @@ export function useGameState(initialState: GameState) {
         const dest = prev.committedPath.length > 0
           ? prev.committedPath[prev.committedPath.length - 1]
           : null;
+        // If no moves were made, cancel (roll back log); otherwise commit
+        const hasMoved = prev.committedPath.length > 0;
         const pieces = dest
           ? prev.pieces.map(p => p.id === prev.selectedPieceId ? { ...p, position: dest, activated: true } : p)
           : prev.pieces.map(p => p.id === prev.selectedPieceId ? { ...p, activated: true } : p);
-        return clearSelection({ ...prev, pieces });
+        return clearSelection({ ...prev, pieces }, !hasMoved);
       }
 
       // Commit move to a reachable square
@@ -220,34 +229,39 @@ export function useGameState(initialState: GameState) {
         const cost = path.length;
         const newRemainingMa = prev.remainingMa - cost;
 
-        // Collect per-step dodge targets (proper BB2020 targets from bfs)
-        const dodgeSteps = path.filter(s => s.requiresDodge && s.dodgeTarget !== null);
-        const newDodgeTargets = [
-          ...prev.pendingDodgeTargets,
-          ...dodgeSteps.map(s => s.dodgeTarget!),
-        ];
-        // Probability of this path segment alone
-        const segmentProb = dodgeSteps
-          .reduce((acc, s) => acc * successChance(s.dodgeTarget!), 1);
-        const newPendingProb = prev.pendingProb * segmentProb;
-
-        const firstDodgeTarget = dodgeSteps.length > 0 ? dodgeSteps[0].dodgeTarget! : null;
-        const prevCumProb = prev.actionLog.length > 0
-          ? prev.actionLog[prev.actionLog.length - 1].cumulativeProb : 1;
-        const moveEntry: ActionLogEntry = {
-          kind: 'move',
-          pieceName: piece.name,
-          from: tip,
-          to: clickedPos,
-          steps: cost,
-          dodgeTarget: firstDodgeTarget,
-          actionProb: segmentProb,
-          cumulativeProb: prevCumProb * segmentProb,
-        };
-
+        // One ActionLogEntry per step so the log matches clicking square-by-square
         const newCommittedPath = [...prev.committedPath, clickedPos];
         const newWalkedSquares = [...prev.walkedSquares, ...path.map(s => s.pos)];
-        const newActionLog = [...prev.actionLog, moveEntry];
+
+        let runningCumProb = prev.actionLog.length > 0
+          ? prev.actionLog[prev.actionLog.length - 1].cumulativeProb : 1;
+        let runningPendingProb = prev.pendingProb;
+        const newDodgeTargets = [...prev.pendingDodgeTargets];
+        const perStepEntries: ActionLogEntry[] = [];
+
+        let fromPos = tip;
+        for (const step of path) {
+          const stepProb = step.dodgeTarget !== null ? successChance(step.dodgeTarget) : 1;
+          runningCumProb = runningCumProb * stepProb;
+          if (step.dodgeTarget !== null) {
+            runningPendingProb = runningPendingProb * stepProb;
+            newDodgeTargets.push(step.dodgeTarget);
+          }
+          perStepEntries.push({
+            kind: 'move',
+            pieceName: piece.name,
+            from: fromPos,
+            to: step.pos,
+            steps: 1,
+            dodgeTarget: step.dodgeTarget,
+            actionProb: stepProb,
+            cumulativeProb: runningCumProb,
+          });
+          fromPos = step.pos;
+        }
+
+        const newPendingProb = runningPendingProb;
+        const newActionLog = [...prev.actionLog, ...perStepEntries];
 
         // Touchdown: ball carrier reached the end zone — commit and end immediately
         if (piece.hasBall && isTouchdownSquare(clickedPos, piece.team)) {
@@ -307,22 +321,24 @@ export function useGameState(initialState: GameState) {
           selectedPieceId: pieceOnSquare.id,
           originPos: pieceOnSquare.position,
           committedPath: [],
+          walkedSquares: [],
           pathPreview: [],
           remainingMa: pieceOnSquare.ma,
           pendingDodgeTargets: [],
           pendingProb: 1,
           reachableKeys,
+          activationLogStart: prev.actionLog.length,
         };
       }
 
-      // Deselect
-      if (prev.selectedPieceId) return clearSelection(prev);
+      // Deselect (cancel)
+      if (prev.selectedPieceId) return clearSelection(prev, true);
       return prev;
     });
   }, []);
 
   const handleCancelSelection = useCallback(() => {
-    setState(prev => prev.selectedPieceId ? clearSelection(prev) : prev);
+    setState(prev => prev.selectedPieceId ? clearSelection(prev, true) : prev);
   }, []);
 
   const handleEndTurn = useCallback(() => {

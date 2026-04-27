@@ -85,6 +85,7 @@ export interface GameState {
   half: 1 | 2;
   score: { human: number; orc: number };
   phase: GamePhase;
+  activationLogStart: number;  // actionLog.length when current piece was selected (for cancel rollback)
   pendingProb: number;         // product of all pending dodge probabilities this turn
   actionLog: ActionLogEntry[];
   isPuzzleMode: boolean;

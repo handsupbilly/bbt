@@ -30,6 +30,7 @@
 }
 
 .dice-log__entry--move    { border-left: 3px solid #4a8c2a; }
+.dice-log__entry--dodge   { border-left: 3px solid #f0a060; }
 .dice-log__entry--success { border-left: 3px solid #4caf50; }
 .dice-log__entry--fail    { border-left: 3px solid #e53935; }
 .dice-log__entry--pending { border-left: 3px solid #666; opacity: 0.7; }
