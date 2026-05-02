@@ -1,35 +1,67 @@
 /* ── Pitch container ────────────────────────────────────────────────── */
 .pitch {
-  position: relative;
-  /* Aspect ratio matches the image: 1639 × 960 */
-  aspect-ratio: 1639 / 960;
   width: 100%;
   user-select: none;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Background image fills the container exactly */
-.pitch__bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  pointer-events: none;
-  user-select: none;
+/* ── Label rows (top / bottom) ──────────────────────────────────────── */
+.pitch__col-labels {
+  display: grid;
+  /* corner + 26 cols + corner */
+  grid-template-columns: 1.4em repeat(26, 1fr) 1.4em;
 }
 
-/* Grid overlay sits on top, inset to the playable field area.
-   Measured from pitch.png (1639×960): field is (20,16)..(1619,946). */
+.pitch__corner {
+  /* spacer aligning col labels with the grid (accounts for row label width) */
+}
+
+.pitch__col-label {
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: rgba(200, 184, 122, 0.75);
+  text-align: center;
+  line-height: 1.4em;
+  font-family: 'Courier New', monospace;
+}
+
+/* ── Middle row: row-labels + grid + row-labels ─────────────────────── */
+.pitch__middle {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.pitch__row-labels {
+  display: flex;
+  flex-direction: column;
+  width: 1.4em;
+  flex-shrink: 0;
+}
+
+.pitch__row-label {
+  flex: 1;
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: rgba(200, 184, 122, 0.75);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Courier New', monospace;
+}
+
+/* ── The field grid ─────────────────────────────────────────────────── */
 .pitch__grid {
-  position: absolute;
-  left:   1.2203%;
-  top:    1.6667%;
-  right:  1.2203%;
-  bottom: 1.4583%;
+  flex: 1;
+  aspect-ratio: 26 / 15;
   display: grid;
   grid-template-columns: repeat(26, 1fr);
   grid-template-rows:    repeat(15, 1fr);
+  border: 2px solid rgba(200, 184, 122, 0.6);
+  box-sizing: border-box;
 }
 
 /* ── Base square ────────────────────────────────────────────────────── */
@@ -41,36 +73,56 @@
   cursor: pointer;
   box-sizing: border-box;
   overflow: hidden;
-  /* Transparent — pitch image shows through */
 }
 
-/* Subtle checkerboard tint so squares are distinguishable */
-.square--light { background: rgba(255, 255, 255, 0.03); }
-.square--dark  { background: rgba(0,   0,   0,   0.05); }
+/* Subtle checkerboard so squares are countable */
+.square--light { background: #4e821c; }
+.square--dark  { background: #467518; }
 
 /* ── End zones ──────────────────────────────────────────────────────── */
-/* Left end zone (col 0) — human — blue tint */
-.square--endzone-left  { background: rgba(30, 80, 180, 0.18); }
-/* Right end zone (col 25) — orc — red tint */
-.square--endzone-right { background: rgba(160, 30, 30, 0.18); }
+.square--endzone-left.square--dark   { background: #162f58; }
+.square--endzone-left.square--light  { background: #1e4478; }
+.square--endzone-right.square--dark  { background: #581616; }
+.square--endzone-right.square--light { background: #781e1e; }
 
-/* ── Yard lines (left border on marked cols) ────────────────────────── */
-.square--yard-line::before {
+/* End zone boundary lines — right edge of col 0, left edge of col 25 */
+.square--endzone-left::before {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: rgba(220, 200, 140, 0.8);
+  pointer-events: none;
+  z-index: 1;
+}
+.square--endzone-right::before {
   content: '';
   position: absolute;
   left: 0; top: 0; bottom: 0;
-  width: 1px;
-  background: rgba(255, 255, 255, 0.25);
+  width: 2px;
+  background: rgba(220, 200, 140, 0.8);
   pointer-events: none;
   z-index: 1;
 }
 
+/* ── Wide zone lines — horizontal, top border of rows 4 and 11 ──────── */
+.square--wide-zone::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 1px;
+  background: rgba(220, 200, 140, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Scrimmage line — vertical, left border of col 13 ───────────────── */
 .square--scrimmage::before {
   content: '';
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 2px;
-  background: rgba(255, 255, 255, 0.50);
+  background: rgba(220, 200, 140, 0.85);
   pointer-events: none;
   z-index: 1;
 }
@@ -88,7 +140,7 @@
 }
 
 .square--reachable .square__overlay {
-  background: rgba(220, 200, 0, 0.15);
+  background: rgba(220, 200, 0, 0.18);
 }
 
 .square--preview-free .square__overlay {
@@ -105,7 +157,6 @@
   box-shadow: inset 0 0 0 2px rgba(255, 160, 0, 0.85);
 }
 
-/* GFI + dodge combined: purple tint */
 .square--preview-gfi-dodge .square__overlay {
   background: rgba(160, 60, 220, 0.55);
   box-shadow: inset 0 0 0 2px rgba(200, 100, 255, 0.90);
@@ -187,7 +238,7 @@
   overflow: visible;
 }
 
-/* ── Dice container — centred in square, stacks vertically ──────────── */
+/* ── Dice container ─────────────────────────────────────────────────── */
 .square__dice {
   position: absolute;
   inset: 0;
@@ -195,30 +246,28 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 4%;
   pointer-events: none;
-  z-index: 6;
-}
-
-/* Single die: fill ~70% of square. Two dice: each ~45%. */
-.square__dice:has(> :only-child) .gfi-die,
-.square__dice:has(> :only-child) .dodge-die {
-  width: 70%;
-  height: 70%;
+  z-index: 5;
 }
 
 .gfi-die,
 .dodge-die {
-  width: 45%;
-  height: 45%;
+  /* Scale with the square — fill most of it when alone, share when stacked */
+  width: 70%;
+  height: 70%;
+  max-width: 100%;
+  max-height: 46%; /* two dice + gap fit without overflow */
   display: block;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* ── Step numbers ───────────────────────────────────────────────────── */
 .step-num {
   position: absolute;
-  top: 1px;
+  bottom: 1px;
   right: 2px;
   font-size: 0.42rem;
   font-weight: 700;

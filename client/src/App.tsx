@@ -213,10 +213,6 @@ export default function App() {
         </div>
 
         <div className="hud__status">{activationStatus}</div>
-
-        <button className="hud__end-turn" onClick={handleEndTurn} disabled={state.phase !== 'playing'}>
-          End Turn
-        </button>
       </header>
 
       <div className="legend">

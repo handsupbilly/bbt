@@ -79,8 +79,7 @@ function DiceFace({ target }: { target: number }) {
 }
 
 function GfiFace() {
-  // d6 showing 2 dots (blue tint — GFI)
-  const dots = DOT_POSITIONS[2];
+  // Die showing face 2 — blue tint to distinguish from dodge dice
   return (
     <svg
       className="gfi-die"
@@ -88,10 +87,9 @@ function GfiFace() {
       xmlns="http://www.w3.org/2000/svg"
     >
       <rect x="1" y="1" width="18" height="18" rx="3" ry="3"
-        fill="rgba(10,20,50,0.82)" stroke="rgba(80,160,255,0.95)" strokeWidth="1.5" />
-      {dots.map(([cx, cy], i) => (
-        <circle key={i} cx={cx} cy={cy} r="2" fill="rgba(140,210,255,0.95)" />
-      ))}
+        fill="rgba(10,20,40,0.80)" stroke="rgba(80,160,255,0.95)" strokeWidth="1.5" />
+      <circle cx="5" cy="5" r="2" fill="rgba(140,210,255,0.95)" />
+      <circle cx="15" cy="15" r="2" fill="rgba(140,210,255,0.95)" />
     </svg>
   );
 }
@@ -129,6 +127,15 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
   const walkedMap = new Map<string, number>();
   state.walkedSquares.forEach((pos, i) => walkedMap.set(key(pos), i + 1));
 
+  // Committed dice: map from destination key -> dice info from actionLog.
+  // Persists after a waypoint is set so dice remain visible on committed squares.
+  const committedDiceMap = new Map<string, { isGfi: boolean; dodgeTarget: number | null }>();
+  for (const entry of state.actionLog) {
+    if (entry.isGfi || entry.dodgeTarget !== null) {
+      committedDiceMap.set(key(entry.to), { isGfi: entry.isGfi, dodgeTarget: entry.dodgeTarget });
+    }
+  }
+
   const selectedPiece = state.selectedPieceId
     ? state.pieces.find(p => p.id === state.selectedPieceId)
     : null;
@@ -153,14 +160,14 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
       const piece      = pieceMap.get(k);
       const isSelected = piece?.id === state.selectedPieceId;
 
-      // End zones: 1 cell wide each side
+      // End zones: 1 col each side
       const isLeftEndZone  = lCol === 0;
       const isRightEndZone = lCol === COLS - 1;
       const isEndZone      = isLeftEndZone || isRightEndZone;
 
-      // Yard lines: portrait rows 4,8,12,17,21 → landscape cols 4,8,12,17,21
-      // Scrimmage: portrait row 13 → landscape col 13
-      const isYardLine  = !isEndZone && lCol > 0 && lCol % 4 === 0 && lCol !== 13;
+      // Wide zone lines: horizontal, 4 rows from each edge → top border of rows 4 and 11
+      const isWideZone  = lRow === 4 || lRow === 11;
+      // Scrimmage: centre of 26-col field → left border of col 13
       const isScrimmage = lCol === 13;
 
       const previewStep     = previewStepMap.get(k);
@@ -178,7 +185,7 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
         (lCol + lRow) % 2 === 0 ? 'square--light' : 'square--dark',
         isLeftEndZone  ? 'square--endzone-left'  : '',
         isRightEndZone ? 'square--endzone-right' : '',
-        isYardLine     ? 'square--yard-line'     : '',
+        isWideZone     ? 'square--wide-zone'     : '',
         isScrimmage    ? 'square--scrimmage'     : '',
         isReachable    ? 'square--reachable'     : '',
         isPreviewFree                       ? 'square--preview-free'      : '',
@@ -224,13 +231,13 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
             </div>
           )}
 
-          {displayStep !== null && !(previewStep?.isGfi || previewStep?.requiresDodge) && (
+          {displayStep !== null && (
             <span className={`step-num ${previewStep ? 'step-num--preview' : 'step-num--committed'}`}>
               {displayStep}
             </span>
           )}
 
-          {/* Dice indicators — shown on any preview square with a roll (including ghost destination) */}
+          {/* Dice indicators — preview path (including ghost destination) */}
           {previewStep && (previewStep.isGfi || previewStep.requiresDodge) && (
             <div className="square__dice">
               {previewStep.isGfi && <GfiFace />}
@@ -240,8 +247,19 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
             </div>
           )}
 
-          {/* Ghost piece — only on destination when it has no risky roll */}
-          {isGhost && selectedPiece && !(previewStep?.isGfi || previewStep?.requiresDodge) && (
+          {/* Dice indicators — committed waypoint squares (persist after click) */}
+          {!previewStep && !piece && (() => {
+            const cd = committedDiceMap.get(k);
+            return cd ? (
+              <div className="square__dice">
+                {cd.isGfi && <GfiFace />}
+                {cd.dodgeTarget !== null && <DiceFace target={cd.dodgeTarget} />}
+              </div>
+            ) : null;
+          })()}
+
+          {/* Ghost piece — suppress when the destination square has rolls (dice take priority) */}
+          {isGhost && selectedPiece && !previewStep?.isGfi && !previewStep?.requiresDodge && (
             <div className={`piece piece--${state.activeTeam} piece--ghost`}>
               <PieceIcon team={state.activeTeam} role={selectedPiece.role} />
               {ghostHasBall && <BallIcon ghost />}
@@ -252,10 +270,40 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
     }
   }
 
+  const colLabels = Array.from({ length: COLS }, (_, i) => (
+    <div key={i} className="pitch__col-label">{i}</div>
+  ));
+
+  const rowLabels = Array.from({ length: ROWS }, (_, i) => (
+    <div key={i} className="pitch__row-label">{String.fromCharCode(65 + i)}</div>
+  ));
+
   return (
     <div className="pitch">
-      <img className="pitch__bg" src="/pitch.png" alt="" draggable={false} />
-      <div className="pitch__grid">{squares}</div>
+      {/* Column labels — top */}
+      <div className="pitch__col-labels pitch__col-labels--top">
+        <div className="pitch__corner" />
+        {colLabels}
+        <div className="pitch__corner" />
+      </div>
+
+      <div className="pitch__middle">
+        {/* Row labels — left */}
+        <div className="pitch__row-labels">{rowLabels}</div>
+
+        {/* The field */}
+        <div className="pitch__grid">{squares}</div>
+
+        {/* Row labels — right */}
+        <div className="pitch__row-labels">{rowLabels}</div>
+      </div>
+
+      {/* Column labels — bottom */}
+      <div className="pitch__col-labels pitch__col-labels--bottom">
+        <div className="pitch__corner" />
+        {colLabels}
+        <div className="pitch__corner" />
+      </div>
     </div>
   );
 }
