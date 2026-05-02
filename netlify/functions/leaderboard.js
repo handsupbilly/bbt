@@ -24,9 +24,12 @@ async function writeEntries(store, scenarioId, entries) {
 }
 
 export default async function handler(req) {
-  // scenarioId forwarded as query param by netlify.toml redirect
   const url = new URL(req.url);
-  const scenarioId = url.searchParams.get('scenarioId');
+  // Try query param first (set by netlify.toml redirect), then fall back to last path segment
+  const scenarioId =
+    url.searchParams.get('scenarioId') ||
+    url.pathname.split('/').filter(Boolean).pop() ||
+    null;
 
   if (!scenarioId) {
     return new Response(JSON.stringify({ error: 'scenarioId required' }), {
