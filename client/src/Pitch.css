@@ -20,12 +20,12 @@
 }
 
 /* Grid overlay sits on top, inset to the playable field area.
-   Measured from pitch.png (1639×960): field is (65,21)..(1572,946). */
+   Measured from pitch.png (1639×960): field is (20,16)..(1619,946). */
 .pitch__grid {
   position: absolute;
-  left:   3.9658%;
-  top:    2.1875%;
-  right:  4.0879%;
+  left:   1.2203%;
+  top:    1.6667%;
+  right:  1.2203%;
   bottom: 1.4583%;
   display: grid;
   grid-template-columns: repeat(26, 1fr);
@@ -187,22 +187,30 @@
   overflow: visible;
 }
 
-/* ── Dice container (top-left, stacks GFI + dodge vertically) ───────── */
+/* ── Dice container — centred in square, stacks vertically ──────────── */
 .square__dice {
   position: absolute;
-  top: 2px;
-  left: 2px;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   pointer-events: none;
-  z-index: 5;
+  z-index: 6;
+}
+
+/* Single die: fill ~70% of square. Two dice: each ~45%. */
+.square__dice:has(> :only-child) .gfi-die,
+.square__dice:has(> :only-child) .dodge-die {
+  width: 70%;
+  height: 70%;
 }
 
 .gfi-die,
 .dodge-die {
-  width: 18px;
-  height: 18px;
+  width: 45%;
+  height: 45%;
   display: block;
   flex-shrink: 0;
 }
@@ -210,7 +218,7 @@
 /* ── Step numbers ───────────────────────────────────────────────────── */
 .step-num {
   position: absolute;
-  bottom: 1px;
+  top: 1px;
   right: 2px;
   font-size: 0.42rem;
   font-weight: 700;

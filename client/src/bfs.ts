@@ -208,7 +208,8 @@ export function findShortestPath(
     if (steps >= totalSteps) continue;
 
     const leavingTZ = tzKeys.has(key(pos));
-    const isGfi = steps >= ma; // this step costs a GFI
+    // This step (departing from pos) costs a GFI if we've already used all normal MA
+    const stepIsGfi = steps >= ma;
 
     for (const next of neighbours(pos)) {
       const nk = key(next);
@@ -218,12 +219,13 @@ export function findShortestPath(
       if (newSteps > totalSteps) continue;
 
       const needsDodge = leavingTZ;
-      const stateKey = `${nk}:${needsDodge ? 1 : 0}:${isGfi ? 1 : 0}`;
+      // State key: destination + whether this arrival required dodge + whether it cost GFI
+      const stateKey = `${nk}:${needsDodge ? 1 : 0}:${stepIsGfi ? 1 : 0}`;
       const newDev = totalDeviation + deviation(next);
 
-      const prev = visited.get(stateKey);
-      if (prev) {
-        const [prevSteps, prevDev] = prev;
+      const existing = visited.get(stateKey);
+      if (existing) {
+        const [prevSteps, prevDev] = existing;
         if (prevSteps < newSteps || (prevSteps === newSteps && prevDev <= newDev)) continue;
       }
       visited.set(stateKey, [newSteps, newDev]);
@@ -232,7 +234,7 @@ export function findShortestPath(
         pos: next,
         requiresDodge: needsDodge,
         dodgeTarget: needsDodge ? dodgeTargetAt(next, ag, opponentPositions) : null,
-        isGfi,
+        isGfi: stepIsGfi,
       };
       queue.push({
         pos: next,

@@ -79,6 +79,8 @@ function DiceFace({ target }: { target: number }) {
 }
 
 function GfiFace() {
+  // d6 showing 2 dots (blue tint — GFI)
+  const dots = DOT_POSITIONS[2];
   return (
     <svg
       className="gfi-die"
@@ -86,15 +88,10 @@ function GfiFace() {
       xmlns="http://www.w3.org/2000/svg"
     >
       <rect x="1" y="1" width="18" height="18" rx="3" ry="3"
-        fill="rgba(10,20,40,0.80)" stroke="rgba(80,160,255,0.95)" strokeWidth="1.5" />
-      <text
-        x="10" y="13.5"
-        textAnchor="middle"
-        fontSize="8"
-        fontWeight="bold"
-        fontFamily="system-ui, sans-serif"
-        fill="rgba(140,210,255,0.95)"
-      >2+</text>
+        fill="rgba(10,20,50,0.82)" stroke="rgba(80,160,255,0.95)" strokeWidth="1.5" />
+      {dots.map(([cx, cy], i) => (
+        <circle key={i} cx={cx} cy={cy} r="2" fill="rgba(140,210,255,0.95)" />
+      ))}
     </svg>
   );
 }
@@ -227,14 +224,14 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
             </div>
           )}
 
-          {displayStep !== null && (
+          {displayStep !== null && !(previewStep?.isGfi || previewStep?.requiresDodge) && (
             <span className={`step-num ${previewStep ? 'step-num--preview' : 'step-num--committed'}`}>
               {displayStep}
             </span>
           )}
 
-          {/* Dice indicators — GFI (blue 2+) and/or dodge die */}
-          {!isGhost && previewStep && (previewStep.isGfi || previewStep.requiresDodge) && (
+          {/* Dice indicators — shown on any preview square with a roll (including ghost destination) */}
+          {previewStep && (previewStep.isGfi || previewStep.requiresDodge) && (
             <div className="square__dice">
               {previewStep.isGfi && <GfiFace />}
               {previewStep.requiresDodge && previewStep.dodgeTarget !== null && (
@@ -243,7 +240,8 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
             </div>
           )}
 
-          {isGhost && selectedPiece && (
+          {/* Ghost piece — only on destination when it has no risky roll */}
+          {isGhost && selectedPiece && !(previewStep?.isGfi || previewStep?.requiresDodge) && (
             <div className={`piece piece--${state.activeTeam} piece--ghost`}>
               <PieceIcon team={state.activeTeam} role={selectedPiece.role} />
               {ghostHasBall && <BallIcon ghost />}
