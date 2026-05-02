@@ -20,12 +20,12 @@
 }
 
 /* Grid overlay sits on top, inset to the playable field area.
-   Measured from pitch.png (1639×960): field is (21,21)..(1618,946). */
+   Measured from pitch.png (1639×960): field is (65,21)..(1572,946). */
 .pitch__grid {
   position: absolute;
-  left:   1.2813%;
+  left:   3.9658%;
   top:    2.1875%;
-  right:  1.2813%;
+  right:  4.0879%;
   bottom: 1.4583%;
   display: grid;
   grid-template-columns: repeat(26, 1fr);

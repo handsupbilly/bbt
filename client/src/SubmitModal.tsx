@@ -9,11 +9,11 @@ interface Props {
 }
 
 function pct(p: number) { return `${(p * 100).toFixed(1)}%`; }
-function fraction(target: number) { return `${7 - target}/6`; }
 function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b); }
 function cumFraction(entries: ActionLogEntry[]): string {
   let num = 1, den = 1;
   for (const e of entries) {
+    if (e.isGfi) { num *= 5; den *= 6; }
     if (e.dodgeTarget !== null) { num *= (7 - e.dodgeTarget); den *= 6; }
   }
   const g = gcd(num, den);
@@ -22,16 +22,19 @@ function cumFraction(entries: ActionLogEntry[]): string {
 function colLabel(col: number) { return String.fromCharCode(65 + col); }
 function posLabel(p: { col: number; row: number }) { return `${colLabel(p.col)}${p.row + 1}`; }
 
-
+function entryLabel(e: ActionLogEntry): string {
+  if (e.isGfi && e.dodgeTarget !== null) return `GFI + ${e.dodgeTarget}+`;
+  if (e.isGfi) return 'GFI 2+';
+  return `${e.dodgeTarget}+`;
+}
 
 export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
   const [name, setName] = useState('');
 
-  const riskyMoves = actionLog.filter(e => e.dodgeTarget !== null);
+  const riskyMoves = actionLog.filter(e => e.isGfi || e.dodgeTarget !== null);
   const cumulativeProb = actionLog.length > 0
     ? actionLog[actionLog.length - 1].cumulativeProb
     : 1;
-
 
   return (
     <div className="modal-backdrop">
@@ -46,8 +49,8 @@ export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
                 <span className="submit-modal__move-label">
                   {posLabel(entry.from)} → {posLabel(entry.to)}
                 </span>
-                <span className="submit-modal__move-dodge">{entry.dodgeTarget}+</span>
-                <span className="submit-modal__move-prob">{fraction(entry.dodgeTarget!)} ({pct(entry.actionProb)})</span>
+                <span className="submit-modal__move-dodge">{entryLabel(entry)}</span>
+                <span className="submit-modal__move-prob">({pct(entry.actionProb)})</span>
               </div>
             ))}
             <div className="submit-modal__cum-row">

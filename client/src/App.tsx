@@ -113,7 +113,7 @@ export default function App() {
     const cumulativeProb = state.actionLog.length > 0
       ? state.actionLog[state.actionLog.length - 1].cumulativeProb
       : 1;
-    const dodgeCount = state.actionLog.filter(e => e.dodgeTarget !== null).length;
+    const dodgeCount = state.actionLog.filter(e => e.dodgeTarget !== null || e.isGfi).length;
     try {
       const entry = await submitScore(activeScenario.id, name, cumulativeProb, dodgeCount);
       setLeaderboardHighlight(entry.id);
