@@ -22,7 +22,7 @@ export function Leaderboard({ scenario, onBack, highlightId }: Props) {
       .then(data => { setEntries(data); setLoading(false); })
       .catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : String(e);
-        setError(`Could not load leaderboard — ${msg} (url: /api/leaderboard/${scenario.id})`);
+        setError(`Could not load leaderboard: — ${msg} (url: /api/leaderboard/${scenario.id})`);
         setLoading(false);
       });
   }, [scenario.id]);
