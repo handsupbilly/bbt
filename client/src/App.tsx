@@ -24,7 +24,7 @@ export default function App() {
   // Game state — reinitialised when mode/scenario changes
   const { state, setState, handleSquareClick, handleSquareHover: hookSquareHover,
           handleSquareLeave: hookSquareLeave, handleCancelSelection,
-          handleEndTurn, handleContinue }
+          handleContinue }
     = useGameState(makeFreePlayState());
 
   const startFreePlay = useCallback(() => {

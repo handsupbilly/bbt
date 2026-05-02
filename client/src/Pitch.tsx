@@ -163,7 +163,6 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
       // End zones: 1 col each side
       const isLeftEndZone  = lCol === 0;
       const isRightEndZone = lCol === COLS - 1;
-      const isEndZone      = isLeftEndZone || isRightEndZone;
 
       // Wide zone lines: horizontal, 4 rows from each edge → top border of rows 4 and 11
       const isWideZone  = lRow === 4 || lRow === 11;
