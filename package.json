@@ -9,6 +9,6 @@
     "start": "cd server && node index.js"
   },
   "dependencies": {
-    "@netlify/blobs": "^8.1.0"
+    "@netlify/blobs": "^8.2.0"
   }
 }
