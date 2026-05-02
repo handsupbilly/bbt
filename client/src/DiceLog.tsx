@@ -8,8 +8,6 @@ interface Props {
 }
 
 function pct(p: number): string { return `${(p * 100).toFixed(1)}%`; }
-function fraction(target: number): string { return `${7 - target}/6`; }
-
 function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b); }
 
 function cumFraction(log: ActionLogEntry[]): string {

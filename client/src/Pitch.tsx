@@ -117,9 +117,9 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
   const pieceMap = new Map(state.pieces.map(p => [key(p.position), p]));
 
   // Preview path: map from key -> step info
-  const previewStepMap = new Map<string, { stepNum: number; requiresDodge: boolean; dodgeTarget: number | null }>();
+  const previewStepMap = new Map<string, { stepNum: number; requiresDodge: boolean; dodgeTarget: number | null; isGfi: boolean }>();
   state.pathPreview.forEach((s, i) => {
-    previewStepMap.set(key(s.pos), { stepNum: i + 1, requiresDodge: s.requiresDodge, dodgeTarget: s.dodgeTarget });
+    previewStepMap.set(key(s.pos), { stepNum: i + 1, requiresDodge: s.requiresDodge, dodgeTarget: s.dodgeTarget, isGfi: s.isGfi });
   });
 
   // Ghost = last square in preview path
