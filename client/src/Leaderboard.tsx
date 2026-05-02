@@ -21,7 +21,8 @@ export function Leaderboard({ scenario, onBack, highlightId }: Props) {
     fetchLeaderboard(scenario.id)
       .then(data => { setEntries(data); setLoading(false); })
       .catch((e: unknown) => {
-        setError(`Could not load leaderboard — ${e instanceof Error ? e.message : String(e)}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(`Could not load leaderboard — ${msg} (url: /api/leaderboard/${scenario.id})`);
         setLoading(false);
       });
   }, [scenario.id]);
