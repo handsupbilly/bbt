@@ -265,6 +265,7 @@ export function useGameState(initialState: GameState) {
           perStepEntries.push({
             kind: 'move',
             pieceName: piece.name,
+            pieceRole: piece.role ?? piece.team,
             from: fromPos,
             to: step.pos,
             steps: 1,

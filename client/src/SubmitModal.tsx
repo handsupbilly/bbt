@@ -22,10 +22,14 @@ function cumFraction(entries: ActionLogEntry[]): string {
 function colLabel(col: number) { return String.fromCharCode(65 + col); }
 function posLabel(p: { col: number; row: number }) { return `${colLabel(p.col)}${p.row + 1}`; }
 
-function entryLabel(e: ActionLogEntry): string {
-  if (e.isGfi && e.dodgeTarget !== null) return `GFI + ${e.dodgeTarget}+`;
-  if (e.isGfi) return 'GFI 2+';
-  return `${e.dodgeTarget}+`;
+function actionLabel(e: ActionLogEntry): string {
+  if (e.isGfi && e.dodgeTarget !== null) return `GFI 2+ · Dodge ${e.dodgeTarget}+`;
+  if (e.isGfi) return 'Go For It 2+';
+  return `Dodge ${e.dodgeTarget}+`;
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
@@ -43,31 +47,32 @@ export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
 
         {riskyMoves.length > 0 ? (
           <div className="submit-modal__moves">
-            <div className="submit-modal__moves-title">Risky moves</div>
+            <div className="submit-modal__moves-header">
+              <span>Player</span>
+              <span>Type</span>
+              <span>Move</span>
+              <span>Action</span>
+              <span className="submit-modal__col-right">Chance</span>
+            </div>
             {riskyMoves.map((entry, i) => (
               <div key={i} className="submit-modal__move-row">
-                <span className="submit-modal__move-label">
-                  {posLabel(entry.from)} → {posLabel(entry.to)}
-                </span>
-                <span className="submit-modal__move-dodge">{entryLabel(entry)}</span>
-                <span className="submit-modal__move-prob">({pct(entry.actionProb)})</span>
+                <span className="submit-modal__move-name">{entry.pieceName}</span>
+                <span className="submit-modal__move-role">{capitalize(entry.pieceRole)}</span>
+                <span className="submit-modal__move-pos">{posLabel(entry.from)} → {posLabel(entry.to)}</span>
+                <span className="submit-modal__move-action">{actionLabel(entry)}</span>
+                <span className="submit-modal__move-prob">{pct(entry.actionProb)}</span>
               </div>
             ))}
             <div className="submit-modal__cum-row">
               <span className="submit-modal__cum-label">Cumulative probability</span>
               <span className={`submit-modal__cum-value${cumulativeProb < 0.5 ? ' submit-modal__cum-value--risky' : ''}`}>
-                {cumFraction(riskyMoves)} <span style={{fontWeight: 400, color: '#888'}}>({pct(cumulativeProb)})</span>
+                {cumFraction(riskyMoves)} <span className="submit-modal__cum-pct">({pct(cumulativeProb)})</span>
               </span>
             </div>
           </div>
         ) : (
-          <p className="submit-modal__no-risk">Clean run — no dodges needed!</p>
+          <p className="submit-modal__no-risk">Clean run — no rolls needed!</p>
         )}
-
-        <div className="submit-modal__score-block">
-          <span className="submit-modal__score-label">Score</span>
-          <span className="submit-modal__score-value">{cumFraction(riskyMoves)} <span style={{fontSize: '1.2rem', fontWeight: 400, color: '#aaa'}}>({pct(cumulativeProb)})</span></span>
-        </div>
 
         <p className="submit-modal__prompt">Enter your name for the leaderboard:</p>
         <input

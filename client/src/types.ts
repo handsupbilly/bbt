@@ -50,6 +50,7 @@ export interface Scenario {
 export type ActionLogEntry = {
   kind: 'move';
   pieceName: string;
+  pieceRole: string;
   from: Position;
   to: Position;
   steps: number;
