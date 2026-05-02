@@ -1,12 +1,13 @@
 [build]
-  command = "cd client && npm install && npm run build"
-  publish = "client/dist"
+  base    = "client"
+  command = "npm install && npm run build"
+  publish = "dist"
 
 [build.environment]
   NODE_VERSION = "22"
 
 [functions]
-  directory = "netlify/functions"
+  directory = "../netlify/functions"
   node_bundler = "esbuild"
 
 # Route API calls to the leaderboard function, forwarding scenarioId as query param
