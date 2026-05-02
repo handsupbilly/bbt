@@ -2,9 +2,13 @@
   "name": "bloodbowl",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "cd client && npm run dev",
     "build": "cd client && npm run build",
     "start": "cd server && node index.js"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
   }
 }

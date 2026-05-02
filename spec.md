@@ -4,7 +4,89 @@
 
 ## Problem Statement
 
-A browser-based Blood Bowl puzzle game. Each scenario presents a fixed pitch state (piece positions, ball position, opponent positions). The player plans a sequence of activations to move the ball carrier into the end zone. The game tracks the cumulative probability of the chosen sequence succeeding. On touchdown, the score (probability % + dice roll count) is submitted to a global leaderboard. Players compete to find the highest-probability route to a touchdown.
+A browser-based Blood Bowl puzzle game.
+
+---
+
+## Leaderboard — Netlify Deployment
+
+### Problem Statement
+
+The current Express server uses in-memory storage (lost on restart) and cannot run on Netlify. The goal is to deploy the full app on Netlify: the React frontend as a static site, and the leaderboard API as Netlify Functions backed by Netlify Blobs for persistence.
+
+### Architecture
+
+```
+Netlify CDN
+├── / (static)          → client/dist  (Vite build)
+└── /.netlify/functions → netlify/functions/leaderboard.js
+                          reads/writes Netlify Blobs (one blob per scenarioId)
+```
+
+The existing Express server (`server/`) is retained for local development only. In production, Netlify Functions replace it.
+
+### Storage Model
+
+One Netlify Blob per scenario, keyed by `scenarioId`. Each blob contains a JSON array of `LeaderboardEntry` objects. On every write the full array is read, upserted, sorted, trimmed to top 10, and written back.
+
+```json
+[
+  { "id": "uuid", "scenarioId": "scenario-001", "name": "Alice",
+    "probability": 0.694, "diceCount": 3, "date": "2026-05-02T..." },
+  ...
+]
+```
+
+### Requirements
+
+1. **Netlify Function** at `netlify/functions/leaderboard.js` handles both GET and POST for `/api/leaderboard/:scenarioId`.
+2. **GET**: Read blob for `scenarioId`, return top 10 sorted `probability DESC`, `diceCount ASC`. Return `[]` if blob doesn't exist yet.
+3. **POST**: Read blob, upsert entry by `name` (replace existing entry for same name with latest submission), sort, trim to top 10, write blob back. Return the upserted entry.
+4. **Routing**: `netlify.toml` rewrites `/api/*` to the function, and `/*` to `index.html` for SPA routing.
+5. **Client `api.ts`**: No changes needed — `/api/leaderboard/:scenarioId` continues to work identically.
+6. **Local dev**: Vite proxy (`/api` → `localhost:3001`) continues to route to the Express server. `netlify dev` can also be used as an alternative local runner.
+7. **Build config**: `netlify.toml` sets `base = "client"`, `publish = "dist"`, `command = "npm run build"`.
+
+### netlify.toml
+
+```toml
+[build]
+  base    = "client"
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/api/*"
+  to   = "/.netlify/functions/leaderboard"
+  status = 200
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+```
+
+### Acceptance Criteria
+
+- `netlify build` succeeds and produces `client/dist`.
+- GET `/api/leaderboard/scenario-001` returns `[]` on first call.
+- POST then GET returns the submitted entry ranked correctly.
+- Submitting the same name replaces the previous entry.
+- Scores persist across function cold starts (stored in Blobs, not memory).
+- Local dev with Express + Vite proxy continues to work unchanged.
+
+### Implementation Steps
+
+1. Create `netlify/functions/leaderboard.js`:
+   - Import `@netlify/blobs` (`getStore`).
+   - Parse `scenarioId` from the request path.
+   - GET: read blob → parse JSON → return top 10.
+   - POST: read blob → upsert by name → sort → trim → write blob → return entry.
+2. Add `@netlify/blobs` to a new `netlify/package.json` (or root `package.json`).
+3. Create `netlify.toml` at repo root with build config and redirects above.
+4. Update `client/vite.config.ts`: keep the `/api` proxy for local dev; no other changes.
+5. Add `netlify/node_modules` and `.netlify` to `.gitignore`.
+6. Test locally with `netlify dev` or the existing Vite + Express setup. Each scenario presents a fixed pitch state (piece positions, ball position, opponent positions). The player plans a sequence of activations to move the ball carrier into the end zone. The game tracks the cumulative probability of the chosen sequence succeeding. On touchdown, the score (probability % + dice roll count) is submitted to a global leaderboard. Players compete to find the highest-probability route to a touchdown.
 
 The current prototype (hot-seat two-player free play) remains as a sandbox/dev mode. The puzzle mode is the primary product.
 
