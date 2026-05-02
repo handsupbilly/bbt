@@ -19,6 +19,7 @@ export default function App() {
   const [appMode, setAppMode] = useState<AppMode>('home');
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
   const [leaderboardHighlight, setLeaderboardHighlight] = useState<string | undefined>();
+  const [leaderboardRefreshKey, setLeaderboardRefreshKey] = useState(0);
 
 
   // Game state — reinitialised when mode/scenario changes
@@ -117,6 +118,7 @@ export default function App() {
     try {
       const entry = await submitScore(activeScenario.id, name, cumulativeProb, dodgeCount);
       setLeaderboardHighlight(entry.id);
+      setLeaderboardRefreshKey(k => k + 1);
       setState(s => ({ ...s, phase: 'playing' }));
       setAppMode('leaderboard');
     } catch {
@@ -149,6 +151,7 @@ export default function App() {
           scenario={activeScenario}
           onBack={() => setAppMode('home')}
           highlightId={leaderboardHighlight}
+          refreshKey={leaderboardRefreshKey}
         />
       </div>
     );
