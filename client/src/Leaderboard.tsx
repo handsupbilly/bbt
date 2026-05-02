@@ -25,7 +25,7 @@ export function Leaderboard({ scenario, onBack, highlightId }: Props) {
         setEntries(data);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        setError(`Load failed: ${msg} [${scenario.id}]`);
+        setError(`Leaderboard Load failed: ${msg} [${scenario.id}]`);
       } finally {
         setLoading(false);
       }
