@@ -18,13 +18,18 @@ export function Leaderboard({ scenario, onBack, highlightId }: Props) {
 
   useEffect(() => {
     setLoading(true);
-    fetchLeaderboard(scenario.id)
-      .then(data => { setEntries(data); setLoading(false); })
-      .catch((e: unknown) => {
+    setError(null);
+    (async () => {
+      try {
+        const data = await fetchLeaderboard(scenario.id);
+        setEntries(data);
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        setError(`Could not load leaderboard: — ${msg} (url: /api/leaderboard/${scenario.id})`);
+        setError(`Load failed: ${msg} [${scenario.id}]`);
+      } finally {
         setLoading(false);
-      });
+      }
+    })();
   }, [scenario.id]);
 
   return (
