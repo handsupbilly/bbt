@@ -8,12 +8,13 @@ interface Props {
   scenario: Scenario;
   onBack: () => void;
   highlightId?: string;
-  initialEntries?: LeaderboardEntry[]; // pre-fetched after submit — skip internal fetch
+  initialEntries?: LeaderboardEntry[];
+  onEntriesLoaded?: (entries: LeaderboardEntry[]) => void;
 }
 
 function pct(p: number) { return `${Math.round(p * 100)}%`; }
 
-export function Leaderboard({ scenario, onBack, highlightId, initialEntries }: Props) {
+export function Leaderboard({ scenario, onBack, highlightId, initialEntries, onEntriesLoaded }: Props) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>(initialEntries ?? []);
   const [loading, setLoading] = useState(!initialEntries);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +27,7 @@ export function Leaderboard({ scenario, onBack, highlightId, initialEntries }: P
       try {
         const data = await fetchLeaderboard(scenario.id);
         setEntries(data);
+        onEntriesLoaded?.(data);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(`Load failed: ${msg} [${scenario.id}]`);

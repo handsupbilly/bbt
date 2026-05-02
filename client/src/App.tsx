@@ -8,7 +8,7 @@ import { PhaseModal } from './PhaseModal';
 import { ScenarioSelect } from './ScenarioSelect';
 import { SubmitModal } from './SubmitModal';
 import { Leaderboard } from './Leaderboard';
-import { submitScore, fetchLeaderboard } from './api';
+import { submitScore } from './api';
 import type { AppMode, PlayerPiece, Scenario, LeaderboardEntry } from './types';
 import { key } from './bfs';
 import './App.css';
@@ -118,9 +118,17 @@ export default function App() {
     const dodgeCount = state.actionLog.filter(e => e.dodgeTarget !== null || e.isGfi).length;
     try {
       const entry = await submitScore(activeScenario.id, name, cumulativeProb, dodgeCount);
-      const entries = await fetchLeaderboard(activeScenario.id);
+      // Build the updated board locally — no second fetch needed.
+      // Remove any existing entry for this name, add the new one, sort, trim to 10.
+      const existing = leaderboardInitialEntries ?? [];
+      const merged = [
+        ...existing.filter(e => e.name !== entry.name),
+        entry,
+      ]
+        .sort((a, b) => b.probability - a.probability || a.diceCount - b.diceCount)
+        .slice(0, 10);
       setLeaderboardHighlight(entry.id);
-      setLeaderboardInitialEntries(entries);
+      setLeaderboardInitialEntries(merged);
       setLeaderboardRefreshKey(k => k + 1);
     } catch {
       setLeaderboardInitialEntries(undefined);
@@ -158,6 +166,7 @@ export default function App() {
           onBack={() => { setLeaderboardInitialEntries(undefined); setAppMode('home'); }}
           highlightId={leaderboardHighlight}
           initialEntries={leaderboardInitialEntries}
+          onEntriesLoaded={setLeaderboardInitialEntries}
         />
       </div>
     );
