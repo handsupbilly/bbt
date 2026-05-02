@@ -24,10 +24,9 @@ async function writeEntries(store, scenarioId, entries) {
 }
 
 export default async function handler(req) {
-  // Parse scenarioId from path: /api/leaderboard/:scenarioId
+  // scenarioId forwarded as query param by netlify.toml redirect
   const url = new URL(req.url);
-  const parts = url.pathname.split('/');
-  const scenarioId = parts[parts.length - 1];
+  const scenarioId = url.searchParams.get('scenarioId');
 
   if (!scenarioId) {
     return new Response(JSON.stringify({ error: 'scenarioId required' }), {
@@ -102,6 +101,4 @@ export default async function handler(req) {
   });
 }
 
-export const config = {
-  path: '/api/leaderboard/:scenarioId',
-};
+
