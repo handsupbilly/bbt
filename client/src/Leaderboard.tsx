@@ -19,23 +19,25 @@ export function Leaderboard({ scenario, onBack, highlightId, initialEntries, onE
   const [loading, setLoading] = useState(!initialEntries);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (initialEntries) return; // already have fresh data from submit
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    (async () => {
-      try {
-        const data = await fetchLeaderboard(scenario.id);
-        setEntries(data);
-        onEntriesLoaded?.(data);
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        setError(`Load failed: ${msg} [${scenario.id}]`);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [scenario.id, initialEntries]);
+    try {
+      const data = await fetchLeaderboard(scenario.id);
+      setEntries(data);
+      onEntriesLoaded?.(data);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(`Load failed: ${msg} [${scenario.id}]`);
+    } finally {
+      setLoading(false);
+    }
+  }, [scenario.id, onEntriesLoaded]);
+
+  useEffect(() => {
+    if (initialEntries) return;
+    load();
+  }, [scenario.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="leaderboard">
@@ -45,6 +47,9 @@ export function Leaderboard({ scenario, onBack, highlightId, initialEntries, onE
           <h2 className="leaderboard__title">{scenario.name}</h2>
           <p className="leaderboard__subtitle">Top plays by success probability</p>
         </div>
+        <button className="lb-reload-btn" onClick={load} disabled={loading} title="Reload">
+          {loading ? '…' : '↻'}
+        </button>
       </div>
 
       {loading && <div className="leaderboard__state">Loading…</div>}
