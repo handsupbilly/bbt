@@ -1,7 +1,7 @@
 import type { Position } from './types';
 
-const COLS = 26;
-const ROWS = 15;
+const COLS = 15;
+const ROWS = 26;
 
 const DIRS: [number, number][] = [
   [-1, -1], [0, -1], [1, -1],
@@ -54,10 +54,12 @@ export function computeReachable(
   ma: number,
   allPiecePositions: Position[],
   opponentPositions: Position[],
+  gfiRemaining: number = 0,
 ): ReachResult {
   const blockedKeys = new Set(allPiecePositions.map(key));
   const tzKeys = tacklezoneKeys(opponentPositions);
   const originKey = key(origin);
+  const totalSteps = ma + gfiRemaining;
 
   const cleanDist = new Map<string, number>();
   const dodgeDist = new Map<string, number>();
@@ -68,7 +70,7 @@ export function computeReachable(
 
   while (queue.length > 0) {
     const { pos, steps } = queue.shift()!;
-    if (steps >= ma) continue;
+    if (steps >= totalSteps) continue;
 
     const leavingTZ = tzKeys.has(key(pos));
 
@@ -76,8 +78,6 @@ export function computeReachable(
       const nk = key(next);
       if (blockedKeys.has(nk)) continue;
 
-      // Dodge required only for the step that leaves a tackle zone square.
-      // Once clear, subsequent steps are free (unless they also leave a TZ).
       const needsDodge = leavingTZ;
 
       if (!needsDodge) {
@@ -96,8 +96,9 @@ export function computeReachable(
   const dodge: Position[] = [];
   const reachableKeys = new Set<string>();
 
-  for (const [k] of cleanDist) {
+  for (const [k, dist] of cleanDist) {
     if (k !== originKey) { free.push(fromKey(k)); reachableKeys.add(k); }
+    void dist;
   }
   for (const [k] of dodgeDist) {
     dodge.push(fromKey(k)); reachableKeys.add(k);
@@ -118,6 +119,8 @@ export interface PathStep {
    * clamped to [2, 6].
    */
   dodgeTarget: number | null;
+  /** True if this step costs a GFI (Go For It) rather than regular MA */
+  isGfi: boolean;
 }
 
 /**
@@ -155,24 +158,20 @@ export function findShortestPath(
   allPiecePositions: Position[],
   opponentPositions: Position[],
   ag: number = 3,
+  gfiRemaining: number = 0,
 ): PathStep[] | null {
   const blockedKeys = new Set(allPiecePositions.map(key));
   const tzKeys = tacklezoneKeys(opponentPositions);
   const targetKey = key(target);
   const originKey = key(origin);
+  const totalSteps = ma + gfiRemaining;
 
   if (blockedKeys.has(targetKey)) return null;
   if (originKey === targetKey) return [];
 
-  // Direction vector from origin to target
   const dx = target.col - origin.col;
   const dy = target.row - origin.row;
 
-  /**
-   * Cross-product deviation: how far a point `p` deviates from the straight
-   * line origin→target. Lower = more "on the line".
-   * |cross| = |dx*(p.row-origin.row) - dy*(p.col-origin.col)|
-   */
   function deviation(p: Position): number {
     return Math.abs(dx * (p.row - origin.row) - dy * (p.col - origin.col));
   }
@@ -184,7 +183,6 @@ export function findShortestPath(
     totalDeviation: number;
   };
 
-  // visited: stateKey -> [minSteps, minDeviation]
   const visited = new Map<string, [number, number]>();
 
   const queue: State[] = [{
@@ -195,7 +193,6 @@ export function findShortestPath(
   }];
   visited.set(`${originKey}:0`, [0, 0]);
 
-  // Sort by steps first, then by deviation (straight-line preference)
   function priority(s: State): number {
     return s.steps * 10000 + s.totalDeviation;
   }
@@ -208,26 +205,25 @@ export function findShortestPath(
       return path;
     }
 
-    if (steps >= ma) continue;
+    if (steps >= totalSteps) continue;
 
     const leavingTZ = tzKeys.has(key(pos));
+    const isGfi = steps >= ma; // this step costs a GFI
 
     for (const next of neighbours(pos)) {
       const nk = key(next);
       if (blockedKeys.has(nk)) continue;
 
       const newSteps = steps + 1;
-      if (newSteps > ma) continue;
+      if (newSteps > totalSteps) continue;
 
-      // Dodge required only when leaving a TZ square — not carried forward.
       const needsDodge = leavingTZ;
-      const stateKey = `${nk}:${needsDodge ? 1 : 0}`;
+      const stateKey = `${nk}:${needsDodge ? 1 : 0}:${isGfi ? 1 : 0}`;
       const newDev = totalDeviation + deviation(next);
 
       const prev = visited.get(stateKey);
       if (prev) {
         const [prevSteps, prevDev] = prev;
-        // Skip if we've already found a path that's shorter, or same length but straighter
         if (prevSteps < newSteps || (prevSteps === newSteps && prevDev <= newDev)) continue;
       }
       visited.set(stateKey, [newSteps, newDev]);
@@ -236,6 +232,7 @@ export function findShortestPath(
         pos: next,
         requiresDodge: needsDodge,
         dodgeTarget: needsDodge ? dodgeTargetAt(next, ag, opponentPositions) : null,
+        isGfi,
       };
       queue.push({
         pos: next,

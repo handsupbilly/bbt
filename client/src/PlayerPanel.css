@@ -1,80 +1,95 @@
+/* ── Panel shell ─────────────────────────────────────────── */
 .panel {
   width: 130px;
   flex-shrink: 0;
-  background: #222;
+  background: #1c1c1c;
   border-radius: 6px;
-  padding: 8px 8px;
+  padding: 0 0 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
   font-size: 0.72rem;
   color: #ccc;
   border: 1px solid #333;
-  transition: border-color 0.2s;
+  overflow: hidden;
   align-self: flex-start;
 }
 
 .panel--human { border-color: #1a6fc4; }
-.panel--orc   { border-color: #c43a1a; }
-.panel--empty { border-color: #333; }
+.panel--orc   { border-color: #8b3a0f; }
+.panel--empty { border-color: #333; justify-content: center; align-items: center; min-height: 200px; }
 
-/* Header */
-.panel__header {
+/* ── Portrait ────────────────────────────────────────────── */
+.panel__portrait-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: #111;
+}
+
+.panel__portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+
+/* Activated overlay */
+.panel__activated-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  font-size: 2.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  pointer-events: none;
 }
 
-.panel__avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: 2px solid rgba(255,255,255,0.2);
+/* Ball badge */
+.panel__ball-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
 }
 
-.panel__avatar--human { background-color: #1a6fc4; }
-.panel__avatar--orc   { background-color: #c43a1a; }
-
-.panel__identity {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
+/* ── Name / role ─────────────────────────────────────────── */
 .panel__name {
   font-weight: 700;
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   color: #f0f0f0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding: 6px 8px 0;
 }
 
-.panel__team {
+.panel__role {
   font-size: 0.62rem;
   color: #888;
+  text-transform: capitalize;
+  padding: 1px 8px 4px;
 }
 
-/* Divider */
-.panel__divider {
-  height: 1px;
-  background: #333;
-  margin: 0 -2px;
-}
-
-/* Stats grid */
+/* ── Stats grid ──────────────────────────────────────────── */
 .panel__stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px 8px;
+  gap: 4px;
+  padding: 4px 8px;
 }
 
 .panel__stat {
   background: #2a2a2a;
   border-radius: 4px;
-  padding: 3px 4px;
+  padding: 4px 2px 3px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -82,57 +97,58 @@
   cursor: default;
 }
 
-.panel__stat-label {
-  font-size: 0.58rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #777;
-  font-weight: 600;
+.panel__stat-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 .panel__stat-value {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: #f0f0f0;
+  line-height: 1;
 }
 
-/* Skills */
-.panel__skills-label {
-  font-size: 0.68rem;
+.panel__stat-label {
+  font-size: 0.55rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #666;
   font-weight: 600;
 }
 
+/* ── Skills ──────────────────────────────────────────────── */
 .panel__skills {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
+  padding: 2px 8px 0;
 }
 
 .panel__skill {
-  background: #333;
+  background: #2e2e2e;
+  border: 1px solid #444;
   border-radius: 3px;
   padding: 1px 5px;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   color: #bbb;
+  white-space: nowrap;
 }
 
-/* Status */
-.panel__status {
-  font-size: 0.78rem;
-  text-align: center;
+/* ── Crest watermark ─────────────────────────────────────── */
+.panel__crest {
+  display: block;
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  opacity: 0.18;
+  margin: 6px auto 0;
 }
 
-.panel__status--ready { color: #4caf50; font-weight: 600; }
-.panel__status--done  { color: #888; }
-
-/* Empty state */
-.panel__empty {
-  color: #555;
-  font-size: 0.78rem;
-  text-align: center;
-  padding: 20px 0;
-  font-style: italic;
+.panel__crest--empty {
+  width: 64px;
+  height: 64px;
+  opacity: 0.12;
+  margin: 0;
 }

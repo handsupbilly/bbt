@@ -1,14 +1,38 @@
+/* ── Pitch container ────────────────────────────────────────────────── */
 .pitch {
-  display: grid;
-  grid-template-columns: repeat(26, 1fr);
-  grid-template-rows: repeat(15, 1fr);
+  position: relative;
+  /* Aspect ratio matches the image: 1639 × 960 */
+  aspect-ratio: 1639 / 960;
   width: 100%;
-  aspect-ratio: 26 / 15;
-  border: 3px solid #2d5a1b;
-  box-sizing: border-box;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Background image fills the container exactly */
+.pitch__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
   user-select: none;
 }
 
+/* Grid overlay sits on top, inset to the playable field area.
+   Measured from pitch.png (1639×960): field is (21,21)..(1618,946). */
+.pitch__grid {
+  position: absolute;
+  left:   1.2813%;
+  top:    2.1875%;
+  right:  1.2813%;
+  bottom: 1.4583%;
+  display: grid;
+  grid-template-columns: repeat(26, 1fr);
+  grid-template-rows:    repeat(15, 1fr);
+}
+
+/* ── Base square ────────────────────────────────────────────────────── */
 .square {
   position: relative;
   display: flex;
@@ -16,151 +40,185 @@
   justify-content: center;
   cursor: pointer;
   box-sizing: border-box;
+  overflow: hidden;
+  /* Transparent — pitch image shows through */
 }
 
-.square--light { background-color: #4a8c2a; }
-.square--dark  { background-color: #3d7522; }
+/* Subtle checkerboard tint so squares are distinguishable */
+.square--light { background: rgba(255, 255, 255, 0.03); }
+.square--dark  { background: rgba(0,   0,   0,   0.05); }
 
-/* End zones — human (left, blue tint) and orc (right, red tint) */
-.square--endzone-left.square--light  { background-color: #2a5a8c; }
-.square--endzone-left.square--dark   { background-color: #1e4a7a; }
-.square--endzone-right.square--light { background-color: #8c2a2a; }
-.square--endzone-right.square--dark  { background-color: #7a1e1e; }
+/* ── End zones ──────────────────────────────────────────────────────── */
+/* Left end zone (col 0) — human — blue tint */
+.square--endzone-left  { background: rgba(30, 80, 180, 0.18); }
+/* Right end zone (col 25) — orc — red tint */
+.square--endzone-right { background: rgba(160, 30, 30, 0.18); }
 
-/* Overlays via ::after so green always shows through */
-.square::after {
+/* ── Yard lines (left border on marked cols) ────────────────────────── */
+.square--yard-line::before {
   content: '';
   position: absolute;
-  inset: 0;
+  left: 0; top: 0; bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.25);
   pointer-events: none;
-  opacity: 0;
-}
-
-/* Tackle zone — inset ring on the 8 squares adjacent to an opponent */
-.square--tz::after {
-  box-shadow: inset 0 0 0 2px rgba(220, 60, 60, 0.75);
-  opacity: 1;
-}
-
-/* All reachable squares — very subtle tint (dim background hint) */
-.square--reachable::after {
-  background-color: rgba(220, 200, 0, 0.15);
-  opacity: 1;
-}
-
-/* Hover preview path — free step (bright yellow) */
-.square--preview-free::after {
-  background-color: rgba(220, 200, 0, 0.55);
-  opacity: 1;
-}
-
-/* Hover preview path — dodge step (orange) */
-.square--preview-dodge::after {
-  background-color: rgba(220, 110, 0, 0.60);
-  box-shadow: inset 0 0 0 2px rgba(255, 160, 0, 0.80);
-  opacity: 1;
-}
-
-/* Path trail — subtle white tint on intermediate squares */
-.square--path::after {
-  background-color: rgba(255, 255, 255, 0.15);
-  opacity: 1;
-}
-
-/* ── Pieces ─────────────────────────────────────────────────────────── */
-.piece {
-  width: 70%;
-  height: 70%;
-  border-radius: 50%;
-  border: 2px solid rgba(0, 0, 0, 0.4);
-  box-sizing: border-box;
-  position: relative;
   z-index: 1;
 }
 
-.piece--human { background-color: #1a6fc4; }
-.piece--orc   { background-color: #c43a1a; }
-
-.piece--selected {
-  border: 3px solid #fff;
-  box-shadow: 0 0 6px 2px rgba(255, 255, 255, 0.8);
-  transform: scale(1.1);
-}
-
-.piece--activated { opacity: 0.45; }
-
-/* Ball carrier — gold ring */
-.piece--carrier {
-  border: 2px solid #f5c518;
-  box-shadow: 0 0 4px 1px rgba(245, 197, 24, 0.6);
-}
-
-/* Ball emoji sits centred inside the piece circle */
-.ball-marker {
+.square--scrimmage::before {
+  content: '';
   position: absolute;
-  font-size: 45%;
-  line-height: 1;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.50);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Overlays ───────────────────────────────────────────────────────── */
+.square__overlay {
+  position: absolute;
+  inset: 0;
   pointer-events: none;
   z-index: 2;
 }
 
-.ball-marker--ghost {
-  opacity: 0.5;
+.square--tz .square__overlay {
+  box-shadow: inset 0 0 0 2px rgba(220, 60, 60, 0.8);
 }
 
-/* Ghost piece at planned destination */
+.square--reachable .square__overlay {
+  background: rgba(220, 200, 0, 0.15);
+}
+
+.square--preview-free .square__overlay {
+  background: rgba(220, 200, 0, 0.55);
+}
+
+.square--preview-gfi .square__overlay {
+  background: rgba(40, 120, 255, 0.45);
+  box-shadow: inset 0 0 0 2px rgba(80, 160, 255, 0.85);
+}
+
+.square--preview-dodge .square__overlay {
+  background: rgba(220, 110, 0, 0.60);
+  box-shadow: inset 0 0 0 2px rgba(255, 160, 0, 0.85);
+}
+
+/* GFI + dodge combined: purple tint */
+.square--preview-gfi-dodge .square__overlay {
+  background: rgba(160, 60, 220, 0.55);
+  box-shadow: inset 0 0 0 2px rgba(200, 100, 255, 0.90);
+}
+
+.square--path .square__overlay {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Pieces ─────────────────────────────────────────────────────────── */
+.piece {
+  width: 72%;
+  height: 72%;
+  border-radius: 50%;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.piece--human {
+  background: #1a2a1a;
+  border: 2px solid #c8a84a;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+.piece--orc {
+  background: #0a0a0a;
+  border: 2px solid #c8a84a;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+.piece--selected {
+  border: 2px solid #fff !important;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 12px 3px rgba(255,255,255,0.5) !important;
+  transform: scale(1.15);
+  z-index: 4;
+}
+
+.piece--activated {
+  opacity: 0.38;
+  filter: saturate(0.3);
+}
+
+.piece--carrier {
+  border: 2px solid #f5c518 !important;
+  box-shadow: 0 0 0 1px rgba(245,197,24,0.5), 0 2px 8px rgba(245,197,24,0.4) !important;
+}
+
 .piece--ghost {
-  opacity: 0.30;
-  border: 2px dashed rgba(255, 255, 255, 0.6);
-  background-color: inherit;
+  opacity: 0.28;
+  border-style: dashed !important;
+  filter: saturate(0.5);
 }
 
-/* ── Dodge die ──────────────────────────────────────────────────────── */
-.dodge-die {
+.piece__portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  border-radius: 50%;
+  pointer-events: none;
+  display: block;
+}
+
+/* ── Ball marker ────────────────────────────────────────────────────── */
+.ball-marker {
+  position: absolute;
+  width: 65%;
+  height: 65%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+}
+
+/* ── Dice container (top-left, stacks GFI + dodge vertically) ───────── */
+.square__dice {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 42%;
-  height: 42%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   pointer-events: none;
-  z-index: 3;
+  z-index: 5;
 }
 
-/* ── Step number labels ─────────────────────────────────────────────── */
+.gfi-die,
+.dodge-die {
+  width: 18px;
+  height: 18px;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ── Step numbers ───────────────────────────────────────────────────── */
 .step-num {
   position: absolute;
-  bottom: 2px;
-  right: 3px;
-  font-size: 0.5rem;
+  bottom: 1px;
+  right: 2px;
+  font-size: 0.42rem;
   font-weight: 700;
   line-height: 1;
   pointer-events: none;
-  z-index: 4;
+  z-index: 5;
   user-select: none;
 }
 
-.step-num--preview {
-  color: rgba(255, 255, 255, 0.80);
-  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
-}
-
-.step-num--committed {
-  color: rgba(255, 255, 255, 0.45);
-  text-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
-}
-
-/* ── Path dots ──────────────────────────────────────────────────────── */
-.path-dot {
-  width: 28%;
-  height: 28%;
-  border-radius: 50%;
-  position: relative;
-  z-index: 1;
-  opacity: 0.7;
-}
-
-.path-dot--human { background-color: #1a6fc4; }
-.path-dot--orc   { background-color: #c43a1a; }
+.step-num--preview   { color: rgba(255,255,255,0.85); text-shadow: 0 0 3px rgba(0,0,0,0.9); }
+.step-num--committed { color: rgba(255,255,255,0.40); text-shadow: 0 0 3px rgba(0,0,0,0.7); }

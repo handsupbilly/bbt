@@ -8,41 +8,67 @@ interface Props {
 }
 
 function pct(p: number): string { return `${(p * 100).toFixed(1)}%`; }
+function fraction(target: number): string { return `${7 - target}/6`; }
+
+function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b); }
+
+function cumFraction(log: ActionLogEntry[]): string {
+  let num = 1, den = 1;
+  for (const e of log) {
+    if (e.isGfi) { num *= 5; den *= 6; }
+    if (e.dodgeTarget !== null) { num *= (7 - e.dodgeTarget); den *= 6; }
+  }
+  const g = gcd(num, den);
+  return `${num / g}/${den / g}`;
+}
+
 function colLabel(col: number): string { return String.fromCharCode(65 + col); }
 function posLabel(p: { col: number; row: number }): string { return `${colLabel(p.col)}${p.row + 1}`; }
+
+function entryClass(e: ActionLogEntry): string {
+  if (e.isGfi && e.dodgeTarget !== null) return 'dice-log__entry--gfi-dodge';
+  if (e.isGfi) return 'dice-log__entry--gfi';
+  if (e.dodgeTarget !== null) return 'dice-log__entry--dodge';
+  return 'dice-log__entry--move';
+}
 
 export function DiceLog({ log, pendingProb }: Props) {
   if (log.length === 0) return null;
 
-  const lastCumProb = log.length > 0 ? log[log.length - 1].cumulativeProb : 1;
+  const lastCumProb = log[log.length - 1].cumulativeProb;
   const overallProb = lastCumProb * pendingProb;
-  const hasDodge = log.some(e => e.dodgeTarget !== null);
+  const hasRoll = log.some(e => e.isGfi || e.dodgeTarget !== null);
 
   return (
     <div className="dice-log">
       <div className="dice-log__title">Action Log</div>
 
       {log.map((entry, i) => (
-        <div key={i} className={`dice-log__entry ${entry.dodgeTarget !== null ? 'dice-log__entry--dodge' : 'dice-log__entry--move'}`}>
+        <div key={i} className={`dice-log__entry ${entryClass(entry)}`}>
           <span className="dice-log__icon">→</span>
           <span className="dice-log__detail">
             <span className="dice-log__piece">{entry.pieceName}</span>
             {' '}{posLabel(entry.from)} → {posLabel(entry.to)}
-            {' '}<span className="dice-log__ma">({entry.steps} sq)</span>
           </span>
-          {entry.dodgeTarget !== null && (
+          {(entry.isGfi || entry.dodgeTarget !== null) && (
             <span className="dice-log__prob">
-              {entry.dodgeTarget}+ <span className="dice-log__prob-pct">({pct(entry.actionProb)})</span>
+              {entry.isGfi && <span className="dice-log__gfi-tag">GFI 2+</span>}
+              {entry.dodgeTarget !== null && (
+                <span>{entry.dodgeTarget}+ <span className="dice-log__prob-pct">({pct(entry.actionProb)})</span></span>
+              )}
+              {entry.isGfi && entry.dodgeTarget === null && (
+                <span className="dice-log__prob-pct">({pct(entry.actionProb)})</span>
+              )}
             </span>
           )}
         </div>
       ))}
 
-      {hasDodge && (
+      {hasRoll && (
         <div className="dice-log__prob-row">
-          <span className="dice-log__prob-label">Cumulative probability</span>
+          <span className="dice-log__prob-label">Cumulative</span>
           <span className={`dice-log__prob-total ${overallProb < 0.5 ? 'dice-log__prob-total--risky' : ''}`}>
-            {pct(overallProb)}
+            {cumFraction(log)} <span className="dice-log__prob-pct">({pct(overallProb)})</span>
           </span>
         </div>
       )}

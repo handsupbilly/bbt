@@ -9,6 +9,16 @@ interface Props {
 }
 
 function pct(p: number) { return `${(p * 100).toFixed(1)}%`; }
+function fraction(target: number) { return `${7 - target}/6`; }
+function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b); }
+function cumFraction(entries: ActionLogEntry[]): string {
+  let num = 1, den = 1;
+  for (const e of entries) {
+    if (e.dodgeTarget !== null) { num *= (7 - e.dodgeTarget); den *= 6; }
+  }
+  const g = gcd(num, den);
+  return `${num / g}/${den / g}`;
+}
 function colLabel(col: number) { return String.fromCharCode(65 + col); }
 function posLabel(p: { col: number; row: number }) { return `${colLabel(p.col)}${p.row + 1}`; }
 
@@ -37,13 +47,13 @@ export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
                   {posLabel(entry.from)} → {posLabel(entry.to)}
                 </span>
                 <span className="submit-modal__move-dodge">{entry.dodgeTarget}+</span>
-                <span className="submit-modal__move-prob">{pct(entry.actionProb)}</span>
+                <span className="submit-modal__move-prob">{fraction(entry.dodgeTarget!)} ({pct(entry.actionProb)})</span>
               </div>
             ))}
             <div className="submit-modal__cum-row">
               <span className="submit-modal__cum-label">Cumulative probability</span>
               <span className={`submit-modal__cum-value${cumulativeProb < 0.5 ? ' submit-modal__cum-value--risky' : ''}`}>
-                {pct(cumulativeProb)}
+                {cumFraction(riskyMoves)} <span style={{fontWeight: 400, color: '#888'}}>({pct(cumulativeProb)})</span>
               </span>
             </div>
           </div>
@@ -53,7 +63,7 @@ export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
 
         <div className="submit-modal__score-block">
           <span className="submit-modal__score-label">Score</span>
-          <span className="submit-modal__score-value">{pct(cumulativeProb)}</span>
+          <span className="submit-modal__score-value">{cumFraction(riskyMoves)} <span style={{fontSize: '1.2rem', fontWeight: 400, color: '#aaa'}}>({pct(cumulativeProb)})</span></span>
         </div>
 
         <p className="submit-modal__prompt">Enter your name for the leaderboard:</p>

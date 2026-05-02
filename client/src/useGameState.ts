@@ -3,15 +3,16 @@ import type { GameState, PlayerPiece, Position, ActionLogEntry, Scenario } from 
 import { computeReachable, findShortestPath, key } from './bfs';
 
 const TURNS_PER_HALF = 8;
-const COLS = 26;
+const ROWS = 26;
 
 const FREE_PLAY_PIECES: PlayerPiece[] = [
-  // Human ball carrier: col 19, row 7 — exactly MA6 from the right end zone (col 25)
-  { id: 'human', team: 'human', name: 'Aldric Swiftfoot', position: { col: 19, row: 7 }, ma: 6, st: 3, ag: 3, av: 8, skills: ['Block'], activated: false, hasBall: true },
-  // Two orcs side by side with one square gap between them, blocking the direct path
-  { id: 'orc1',  team: 'orc',   name: 'Grukk Ironjaw',   position: { col: 21, row: 6 }, ma: 4, st: 3, ag: 3, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
-  { id: 'orc2',  team: 'orc',   name: 'Muzgash Skullkrak', position: { col: 21, row: 8 }, ma: 4, st: 3, ag: 3, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
+  // Human ball carrier: row 6, col 7 — exactly MA6 from the top end zone (row 0)
+  { id: 'human', team: 'human', role: 'thrower', name: 'Aldric Swiftfoot', position: { col: 7, row: 6 }, ma: 6, st: 3, ag: 3, av: 8, skills: ['Block'], activated: false, hasBall: true },
+  { id: 'orc1',  team: 'orc',   role: 'blocker', name: 'Grukk Ironjaw',     position: { col: 6, row: 4 }, ma: 4, st: 3, ag: 3, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
+  { id: 'orc2',  team: 'orc',   role: 'blocker', name: 'Muzgash Skullkrak', position: { col: 8, row: 4 }, ma: 4, st: 3, ag: 3, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
 ];
+
+const MAX_GFI = 2;
 
 function makeBlankState(overrides: Partial<GameState> = {}): GameState {
   return {
@@ -24,6 +25,7 @@ function makeBlankState(overrides: Partial<GameState> = {}): GameState {
     walkedSquares: [],
     pathPreview: [],
     remainingMa: 0,
+    remainingGfi: 0,
     pendingDodgeTargets: [],
     humanTurn: 1,
     orcTurn: 1,
@@ -60,17 +62,18 @@ export function successChance(target: number): number {
 
 function posKey(p: Position) { return key(p); }
 
-/** Recompute the full reachable set from `fromPos` with `ma` remaining. */
+/** Recompute the full reachable set from `fromPos` with `ma` and `gfi` remaining. */
 function recomputeReachable(
   state: GameState,
   pieceId: string,
   fromPos: Position,
   ma: number,
+  gfi: number = 0,
 ): Pick<GameState, 'reachableKeys'> {
   const piece = state.pieces.find(p => p.id === pieceId)!;
   const opponents = state.pieces.filter(p => p.team !== piece.team).map(p => p.position);
   const others    = state.pieces.filter(p => p.id !== pieceId).map(p => p.position);
-  const { reachableKeys } = computeReachable(fromPos, ma, others, opponents);
+  const { reachableKeys } = computeReachable(fromPos, ma, others, opponents, gfi);
   return { reachableKeys };
 }
 
@@ -84,10 +87,10 @@ function clearSelection(state: GameState, cancelActivation = false): GameState {
     walkedSquares: [],
     pathPreview: [],
     remainingMa: 0,
+    remainingGfi: 0,
     pendingDodgeTargets: [],
     pendingProb: 1,
     activationLogStart: 0,
-    // On cancel, roll back log entries added during this activation
     actionLog: cancelActivation
       ? state.actionLog.slice(0, state.activationLogStart)
       : state.actionLog,
@@ -104,7 +107,7 @@ function commitMove(state: GameState): GameState['pieces'] {
 }
 
 function isTouchdownSquare(pos: Position, team: string): boolean {
-  return team === 'human' ? pos.col === COLS - 1 : pos.col === 0;
+  return team === 'human' ? pos.row === 0 : pos.row === ROWS - 1;
 }
 
 function advanceTurn(state: GameState): GameState {
@@ -124,6 +127,7 @@ function advanceTurn(state: GameState): GameState {
   next.walkedSquares = [];
   next.pathPreview = [];
   next.remainingMa = 0;
+  next.remainingGfi = 0;
   next.pendingDodgeTargets = [];
   next.pendingProb = 1;
   next.activationLogStart = 0;
@@ -167,7 +171,7 @@ export function useGameState(initialState: GameState) {
       const opponents = prev.pieces.filter(p => p.team !== piece.team).map(p => p.position);
       const others    = prev.pieces.filter(p => p.id !== piece.id).map(p => p.position);
 
-      const path = findShortestPath(tip, hovered, prev.remainingMa, others, opponents, piece.ag);
+      const path = findShortestPath(tip, hovered, prev.remainingMa, others, opponents, piece.ag, prev.remainingGfi);
       return { ...prev, pathPreview: path ?? [] };
     });
   }, []);
@@ -222,14 +226,20 @@ export function useGameState(initialState: GameState) {
         const opponents = prev.pieces.filter(p => p.team !== piece.team).map(p => p.position);
         const others    = prev.pieces.filter(p => p.id !== piece.id).map(p => p.position);
 
-        const path = findShortestPath(tip, clickedPos, prev.remainingMa, others, opponents, piece.ag);
+        const path = findShortestPath(tip, clickedPos, prev.remainingMa, others, opponents, piece.ag, prev.remainingGfi);
         if (!path || path.length === 0) return prev;
 
-        // Deduct MA = number of steps in path
-        const cost = path.length;
-        const newRemainingMa = prev.remainingMa - cost;
+        // Deduct MA and GFI separately
+        let newRemainingMa = prev.remainingMa;
+        let newRemainingGfi = prev.remainingGfi;
+        for (const step of path) {
+          if (step.isGfi) {
+            newRemainingGfi = Math.max(0, newRemainingGfi - 1);
+          } else {
+            newRemainingMa = Math.max(0, newRemainingMa - 1);
+          }
+        }
 
-        // One ActionLogEntry per step so the log matches clicking square-by-square
         const newCommittedPath = [...prev.committedPath, clickedPos];
         const newWalkedSquares = [...prev.walkedSquares, ...path.map(s => s.pos)];
 
@@ -241,12 +251,17 @@ export function useGameState(initialState: GameState) {
 
         let fromPos = tip;
         for (const step of path) {
-          const stepProb = step.dodgeTarget !== null ? successChance(step.dodgeTarget) : 1;
+          // GFI = 2+ (5/6 success). Dodge and GFI can stack — multiply probabilities.
+          const gfiProb  = step.isGfi ? successChance(2) : 1;
+          const dodgeProb = step.dodgeTarget !== null ? successChance(step.dodgeTarget) : 1;
+          const stepProb = gfiProb * dodgeProb;
           runningCumProb = runningCumProb * stepProb;
-          if (step.dodgeTarget !== null) {
+
+          if (step.isGfi || step.dodgeTarget !== null) {
             runningPendingProb = runningPendingProb * stepProb;
-            newDodgeTargets.push(step.dodgeTarget);
+            if (step.dodgeTarget !== null) newDodgeTargets.push(step.dodgeTarget);
           }
+
           perStepEntries.push({
             kind: 'move',
             pieceName: piece.name,
@@ -254,6 +269,7 @@ export function useGameState(initialState: GameState) {
             to: step.pos,
             steps: 1,
             dodgeTarget: step.dodgeTarget,
+            isGfi: step.isGfi,
             actionProb: stepProb,
             cumulativeProb: runningCumProb,
           });
@@ -263,7 +279,7 @@ export function useGameState(initialState: GameState) {
         const newPendingProb = runningPendingProb;
         const newActionLog = [...prev.actionLog, ...perStepEntries];
 
-        // Touchdown: ball carrier reached the end zone — commit and end immediately
+        // Touchdown: ball carrier reached the end zone
         if (piece.hasBall && isTouchdownSquare(clickedPos, piece.team)) {
           const pieces = prev.pieces.map(p =>
             p.id === piece.id ? { ...p, position: clickedPos, activated: true } : p
@@ -280,12 +296,14 @@ export function useGameState(initialState: GameState) {
           });
         }
 
-        if (newRemainingMa <= 0) {
+        // No MA or GFI left — freeze reachable
+        if (newRemainingMa <= 0 && newRemainingGfi <= 0) {
           return {
             ...prev,
             committedPath: newCommittedPath,
             walkedSquares: newWalkedSquares,
             remainingMa: 0,
+            remainingGfi: 0,
             reachableKeys: new Set(),
             pathPreview: [],
             pendingDodgeTargets: newDodgeTargets,
@@ -294,13 +312,14 @@ export function useGameState(initialState: GameState) {
           };
         }
 
-        const { reachableKeys } = recomputeReachable(prev, prev.selectedPieceId, clickedPos, newRemainingMa);
+        const { reachableKeys } = recomputeReachable(prev, prev.selectedPieceId, clickedPos, newRemainingMa, newRemainingGfi);
 
         return {
           ...prev,
           committedPath: newCommittedPath,
           walkedSquares: newWalkedSquares,
           remainingMa: newRemainingMa,
+          remainingGfi: newRemainingGfi,
           reachableKeys,
           pathPreview: [],
           pendingDodgeTargets: newDodgeTargets,
@@ -315,7 +334,7 @@ export function useGameState(initialState: GameState) {
         pieceOnSquare.team === prev.activeTeam &&
         !pieceOnSquare.activated
       ) {
-        const { reachableKeys } = recomputeReachable(prev, pieceOnSquare.id, pieceOnSquare.position, pieceOnSquare.ma);
+        const { reachableKeys } = recomputeReachable(prev, pieceOnSquare.id, pieceOnSquare.position, pieceOnSquare.ma, MAX_GFI);
         return {
           ...prev,
           selectedPieceId: pieceOnSquare.id,
@@ -324,6 +343,7 @@ export function useGameState(initialState: GameState) {
           walkedSquares: [],
           pathPreview: [],
           remainingMa: pieceOnSquare.ma,
+          remainingGfi: MAX_GFI,
           pendingDodgeTargets: [],
           pendingProb: 1,
           reachableKeys,

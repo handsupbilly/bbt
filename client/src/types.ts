@@ -11,6 +11,7 @@ export interface PlayerPiece {
   id: string;
   team: Team;
   name: string;
+  role?: string;  // e.g. 'thrower' | 'catcher' | 'lineman' | 'blocker' | 'guard' | 'tackle'
   position: Position;
   ma: number;
   st: number;
@@ -53,7 +54,8 @@ export type ActionLogEntry = {
   to: Position;
   steps: number;
   dodgeTarget: number | null;  // null = free move
-  actionProb: number;          // probability of this step alone (1 if no dodge)
+  isGfi: boolean;              // true = Go For It step (2+ roll)
+  actionProb: number;          // probability of this step alone (1 if no roll needed)
   cumulativeProb: number;      // running product up to and including this step
 };
 
@@ -78,6 +80,7 @@ export interface GameState {
   // Hover preview: shortest path from path tip to hovered square
   pathPreview: PathStep[];
   remainingMa: number;
+  remainingGfi: number;        // GFI steps still available (max 2, resets each activation)
   // Dodge targets queued along committed path (rolled on End Turn)
   pendingDodgeTargets: number[];
   humanTurn: number;

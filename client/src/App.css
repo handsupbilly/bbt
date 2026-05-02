@@ -187,6 +187,7 @@ body,
 
 .legend__item--tz    { background: rgba(200, 40, 40, 0.30);  color: #f0a0a0; }
 .legend__item--free  { background: rgba(200, 180, 0, 0.40);  color: #f0e060; }
+.legend__item--gfi   { background: rgba(40, 120, 255, 0.35); color: #90c8ff; }
 .legend__item--dodge { background: rgba(220, 120, 0, 0.45);  color: #f0b060; }
 
 /* ── Three-column game area ──────────────────────────────────────────── */
@@ -213,11 +214,34 @@ body,
   align-items: center;
   justify-content: center;
   min-height: 0;
-  align-self: center;
+  align-self: stretch;
+}
+
+/* ── Pitch sizing — always landscape 1653:951 ────────────────────────── */
+.pitch-wrapper {
+  overflow: hidden;
 }
 
 .pitch-wrapper .pitch {
-  max-width: 100%;
-  max-height: 100%;
-  width: min(100%, calc((100vh - 160px) * 26 / 15));
+  /* Fill available width; height follows 1653:951 aspect ratio */
+  width: 100%;
+  height: auto;
+}
+
+/* ── Mobile: hide side panels, stack vertically ──────────────────────── */
+@media (max-width: 768px) {
+  .app {
+    padding: 6px;
+    gap: 4px;
+  }
+
+  .game-area {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .side-col {
+    display: none;
+  }
 }

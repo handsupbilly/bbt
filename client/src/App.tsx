@@ -174,7 +174,7 @@ export default function App() {
   const lastCommittedProb = state.actionLog.length > 0
     ? state.actionLog[state.actionLog.length - 1].cumulativeProb : 1;
   const liveProbPct = Math.round(lastCommittedProb * state.pendingProb * 100);
-  const showProb = state.actionLog.some(e => e.dodgeTarget !== null) || state.pendingDodgeTargets.length > 0;
+  const showProb = state.actionLog.some(e => e.dodgeTarget !== null || e.isGfi) || state.pendingDodgeTargets.length > 0;
 
   return (
     <div className="app">
@@ -222,6 +222,7 @@ export default function App() {
       <div className="legend">
         <span className="legend__item legend__item--tz">Tackle Zone</span>
         <span className="legend__item legend__item--free">Free Move</span>
+        <span className="legend__item legend__item--gfi">Go For It</span>
         <span className="legend__item legend__item--dodge">Dodge Required</span>
       </div>
 
