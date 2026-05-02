@@ -20,7 +20,10 @@ export function Leaderboard({ scenario, onBack, highlightId }: Props) {
     setLoading(true);
     fetchLeaderboard(scenario.id)
       .then(data => { setEntries(data); setLoading(false); })
-      .catch(() => { setError('Could not load leaderboard.'); setLoading(false); });
+      .catch((e: unknown) => {
+        setError(`Could not load leaderboard — ${e instanceof Error ? e.message : String(e)}`);
+        setLoading(false);
+      });
   }, [scenario.id]);
 
   return (

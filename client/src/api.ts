@@ -4,7 +4,10 @@ const BASE = '/api';
 
 export async function fetchLeaderboard(scenarioId: string): Promise<LeaderboardEntry[]> {
   const res = await fetch(`${BASE}/leaderboard/${scenarioId}`);
-  if (!res.ok) throw new Error('Failed to fetch leaderboard');
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`${res.status} ${res.statusText}${body ? `: ${body}` : ''}`);
+  }
   return res.json();
 }
 
