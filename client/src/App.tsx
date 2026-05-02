@@ -8,8 +8,8 @@ import { PhaseModal } from './PhaseModal';
 import { ScenarioSelect } from './ScenarioSelect';
 import { SubmitModal } from './SubmitModal';
 import { Leaderboard } from './Leaderboard';
-import { submitScore } from './api';
-import type { AppMode, PlayerPiece, Scenario } from './types';
+import { submitScore, fetchLeaderboard } from './api';
+import type { AppMode, PlayerPiece, Scenario, LeaderboardEntry } from './types';
 import { key } from './bfs';
 import './App.css';
 
@@ -20,6 +20,7 @@ export default function App() {
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
   const [leaderboardHighlight, setLeaderboardHighlight] = useState<string | undefined>();
   const [leaderboardRefreshKey, setLeaderboardRefreshKey] = useState(0);
+  const [leaderboardInitialEntries, setLeaderboardInitialEntries] = useState<LeaderboardEntry[] | undefined>();
 
 
   // Game state — reinitialised when mode/scenario changes
@@ -117,11 +118,15 @@ export default function App() {
     const dodgeCount = state.actionLog.filter(e => e.dodgeTarget !== null || e.isGfi).length;
     try {
       const entry = await submitScore(activeScenario.id, name, cumulativeProb, dodgeCount);
+      const entries = await fetchLeaderboard(activeScenario.id);
       setLeaderboardHighlight(entry.id);
+      setLeaderboardInitialEntries(entries);
       setLeaderboardRefreshKey(k => k + 1);
-      setState(s => ({ ...s, phase: 'playing' }));
-      setAppMode('leaderboard');
     } catch {
+      setLeaderboardInitialEntries(undefined);
+      setLeaderboardRefreshKey(k => k + 1);
+    } finally {
+      setState(s => ({ ...s, phase: 'playing' }));
       setAppMode('leaderboard');
     }
   }, [activeScenario, state.actionLog, setState]);
@@ -150,8 +155,9 @@ export default function App() {
         <Leaderboard
           key={leaderboardRefreshKey}
           scenario={activeScenario}
-          onBack={() => setAppMode('home')}
+          onBack={() => { setLeaderboardInitialEntries(undefined); setAppMode('home'); }}
           highlightId={leaderboardHighlight}
+          initialEntries={leaderboardInitialEntries}
         />
       </div>
     );

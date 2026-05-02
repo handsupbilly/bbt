@@ -1,22 +1,25 @@
 import { useEffect, useState } from 'react';
 import { fetchLeaderboard } from './api';
 import type { LeaderboardEntry, Scenario } from './types';
+
 import './Leaderboard.css';
 
 interface Props {
   scenario: Scenario;
   onBack: () => void;
-  highlightId?: string; // newly submitted entry
+  highlightId?: string;
+  initialEntries?: LeaderboardEntry[]; // pre-fetched after submit — skip internal fetch
 }
 
 function pct(p: number) { return `${Math.round(p * 100)}%`; }
 
-export function Leaderboard({ scenario, onBack, highlightId }: Props) {
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+export function Leaderboard({ scenario, onBack, highlightId, initialEntries }: Props) {
+  const [entries, setEntries] = useState<LeaderboardEntry[]>(initialEntries ?? []);
+  const [loading, setLoading] = useState(!initialEntries);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initialEntries) return; // already have fresh data from submit
     setLoading(true);
     setError(null);
     (async () => {
@@ -25,12 +28,12 @@ export function Leaderboard({ scenario, onBack, highlightId }: Props) {
         setEntries(data);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        setError(`Leaderboard Load failed: ${msg} [${scenario.id}]`);
+        setError(`Load failed: ${msg} [${scenario.id}]`);
       } finally {
         setLoading(false);
       }
     })();
-  }, [scenario.id]);
+  }, [scenario.id, initialEntries]);
 
   return (
     <div className="leaderboard">
