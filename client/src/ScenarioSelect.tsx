@@ -12,7 +12,7 @@ export function ScenarioSelect({ onPlay, onLeaderboard, onFreePlay }: Props) {
   return (
     <div className="scenario-select">
       <div className="scenario-select__header">
-        <h1 className="scenario-select__title">Blood Bowl Tactics</h1>
+        <h1 className="scenario-select__title">BB Tactics</h1>
         <p className="scenario-select__subtitle">
           Plan the perfect play. Compete for the highest probability touchdown.
         </p>
@@ -45,7 +45,7 @@ export function ScenarioSelect({ onPlay, onLeaderboard, onFreePlay }: Props) {
 
       <div className="scenario-select__footer">
         <button className="btn btn--ghost" onClick={onFreePlay}>
-          Free Play (sandbox)
+           Sandbox
         </button>
       </div>
     </div>
