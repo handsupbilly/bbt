@@ -7,12 +7,11 @@ interface Props {
   scenario: Scenario;
   onBack: () => void;
   highlightId?: string; // newly submitted entry
-  refreshKey?: number;  // increment to force a refetch
 }
 
 function pct(p: number) { return `${Math.round(p * 100)}%`; }
 
-export function Leaderboard({ scenario, onBack, highlightId, refreshKey }: Props) {
+export function Leaderboard({ scenario, onBack, highlightId }: Props) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +30,7 @@ export function Leaderboard({ scenario, onBack, highlightId, refreshKey }: Props
         setLoading(false);
       }
     })();
-  }, [scenario.id, refreshKey]);
+  }, [scenario.id]);
 
   return (
     <div className="leaderboard">

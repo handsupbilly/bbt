@@ -148,10 +148,10 @@ export default function App() {
     return (
       <div className="app app--home">
         <Leaderboard
+          key={leaderboardRefreshKey}
           scenario={activeScenario}
           onBack={() => setAppMode('home')}
           highlightId={leaderboardHighlight}
-          refreshKey={leaderboardRefreshKey}
         />
       </div>
     );
