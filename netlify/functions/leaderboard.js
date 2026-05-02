@@ -35,7 +35,11 @@ export default async function handler(req) {
     });
   }
 
-  const store = getStore('leaderboard');
+  const store = getStore({
+    name: 'leaderboard',
+    siteID: process.env.NETLIFY_SITE_ID ?? process.env.SITE_ID,
+    token: process.env.NETLIFY_TOKEN ?? process.env.NETLIFY_AUTH_TOKEN,
+  });
 
   // ── GET ──────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {
