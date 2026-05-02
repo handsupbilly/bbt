@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fetchLeaderboard } from './api';
 import type { LeaderboardEntry, Scenario } from './types';
 
