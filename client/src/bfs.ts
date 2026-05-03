@@ -133,7 +133,7 @@ export interface PathStep {
  *   clamped to [2, 6]
  */
 export function dodgeTargetAt(dest: Position, ag: number, opponentPositions: Position[]): number {
-  const base = 7 - ag;
+  const base = 6 - ag;
   const tzCount = opponentPositions.filter(op =>
     neighbours(op).some(n => n.col === dest.col && n.row === dest.row)
   ).length;
