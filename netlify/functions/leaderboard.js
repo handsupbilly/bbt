@@ -66,7 +66,7 @@ export default async function handler(req) {
       });
     }
 
-    const { name, probability, diceCount } = body;
+    const { name, probability, diceCount, moves } = body;
     if (!name || probability == null || diceCount == null) {
       return new Response(
         JSON.stringify({ error: 'name, probability and diceCount are required' }),
@@ -81,6 +81,7 @@ export default async function handler(req) {
       probability: Number(probability),
       diceCount: Number(diceCount),
       date: new Date().toISOString(),
+      moves: Array.isArray(moves) ? moves : [],
     };
 
     const entries = await readEntries(store, scenarioId);

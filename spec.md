@@ -8,6 +8,73 @@ A browser-based Blood Bowl puzzle game.
 
 ---
 
+## Leaderboard — Move Summary on Row Click
+
+### Problem Statement
+
+Clicking a leaderboard row should show the risky moves (dodge/GFI steps) that produced that score, in the same format as the post-touchdown submit modal. Currently the `actionLog` is not persisted — only `probability` and `diceCount` are stored.
+
+### Data Model Changes
+
+Add `moves` to `LeaderboardEntry` — an array of risky-move-only entries (steps where `isGfi === true` or `dodgeTarget !== null`).
+
+**Updated `LeaderboardEntry`:**
+```ts
+interface LeaderboardEntry {
+  id: string;
+  scenarioId: string;
+  name: string;
+  probability: number;
+  diceCount: number;
+  date: string;
+  moves: RiskyMove[];
+}
+
+interface RiskyMove {
+  pieceName: string;
+  pieceRole: string;
+  from: Position;
+  to: Position;
+  dodgeTarget: number | null;
+  isGfi: boolean;
+  actionProb: number;
+  cumulativeProb: number;
+}
+```
+
+### Storage
+
+`moves` is stored inside the existing Blob entry alongside the other fields. No new Blob keys needed.
+
+### Requirements
+
+1. **`types.ts`**: Add `RiskyMove` type and `moves: RiskyMove[]` to `LeaderboardEntry`.
+2. **`api.ts`**: Update `submitScore` to accept and send `moves` in the POST body.
+3. **`netlify/functions/leaderboard.js`**: Accept `moves` in POST body, store and return it.
+4. **`App.tsx`**: Build `moves` from `state.actionLog` (filter to risky steps) and pass to `submitScore`.
+5. **`Leaderboard.tsx`**: Row click navigates to a `ScoreSummary` panel, passing the selected entry.
+6. **`ScoreSummary.tsx`** (new): Displays the risky-moves table (Player · Type · Move · Action · Chance) and cumulative probability. Has a back button returning to the leaderboard.
+
+### Acceptance Criteria
+
+- Submitting a score stores risky moves in the Blob entry.
+- Clicking a leaderboard row shows the move summary panel.
+- Summary shows: Player, Type, Move, Action, Chance, cumulative probability.
+- Back button returns to the leaderboard.
+- Old entries without `moves` show "No move data available" gracefully.
+
+### Implementation Steps
+
+1. Add `RiskyMove` type and update `LeaderboardEntry` in `types.ts`.
+2. Update `submitScore` in `api.ts` to include `moves` in the POST body.
+3. Update `netlify/functions/leaderboard.js` to persist and return `moves`.
+4. Update `App.tsx` `handleSubmit` to extract risky moves from `actionLog` and pass to `submitScore`.
+5. Create `ScoreSummary.tsx` reusing the risky-moves table markup from `SubmitModal`.
+6. Update `Leaderboard.tsx` to accept `onRowClick` prop and call it on row click.
+7. Wire up navigation in `App.tsx` to show `ScoreSummary` when a row is clicked.
+
+---
+
 ## Leaderboard — Netlify Deployment
 
 ### Problem Statement

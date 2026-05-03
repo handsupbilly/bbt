@@ -10,11 +10,12 @@ interface Props {
   highlightId?: string;
   initialEntries?: LeaderboardEntry[];
   onEntriesLoaded?: (entries: LeaderboardEntry[]) => void;
+  onRowClick?: (entry: LeaderboardEntry) => void;
 }
 
 function pct(p: number) { return `${Math.round(p * 100)}%`; }
 
-export function Leaderboard({ scenario, onBack, highlightId, initialEntries, onEntriesLoaded }: Props) {
+export function Leaderboard({ scenario, onBack, highlightId, initialEntries, onEntriesLoaded, onRowClick }: Props) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>(initialEntries ?? []);
   const [loading, setLoading] = useState(!initialEntries);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +73,14 @@ export function Leaderboard({ scenario, onBack, highlightId, initialEntries, onE
           </thead>
           <tbody>
             {entries.map((e, i) => (
-              <tr key={e.id} className={e.id === highlightId ? 'lb-table__row--highlight' : ''}>
+              <tr
+                key={e.id}
+                className={[
+                  e.id === highlightId ? 'lb-table__row--highlight' : '',
+                  onRowClick ? 'lb-table__row--clickable' : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => onRowClick?.(e)}
+              >
                 <td className="lb-table__rank">
                   {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                 </td>

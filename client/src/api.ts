@@ -1,4 +1,4 @@
-import type { LeaderboardEntry } from './types';
+import type { LeaderboardEntry, RiskyMove } from './types';
 
 const BASE = '/api';
 
@@ -16,11 +16,12 @@ export async function submitScore(
   name: string,
   probability: number,
   diceCount: number,
+  moves: RiskyMove[],
 ): Promise<LeaderboardEntry> {
   const res = await fetch(`${BASE}/leaderboard/${scenarioId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, probability, diceCount }),
+    body: JSON.stringify({ name, probability, diceCount, moves }),
   });
   if (!res.ok) throw new Error('Failed to submit score');
   return res.json();

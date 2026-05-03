@@ -88,6 +88,9 @@
   color: #ccc;
 }
 
+.lb-table__row--clickable { cursor: pointer; }
+.lb-table__row--clickable:hover td { background: #2a2a2a; }
+
 .lb-table__row--highlight td {
   background: rgba(74, 140, 42, 0.15);
   color: #f0f0f0;

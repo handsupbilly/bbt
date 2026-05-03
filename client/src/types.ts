@@ -98,6 +98,17 @@ export interface GameState {
 
 // ── Leaderboard ─────────────────────────────────────────────────────────────
 
+export interface RiskyMove {
+  pieceName: string;
+  pieceRole: string;
+  from: Position;
+  to: Position;
+  dodgeTarget: number | null;
+  isGfi: boolean;
+  actionProb: number;
+  cumulativeProb: number;
+}
+
 export interface LeaderboardEntry {
   id: string;
   scenarioId: string;
@@ -105,4 +116,5 @@ export interface LeaderboardEntry {
   probability: number;
   diceCount: number;
   date: string;
+  moves: RiskyMove[];
 }

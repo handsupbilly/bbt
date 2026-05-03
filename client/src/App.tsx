@@ -8,6 +8,7 @@ import { PhaseModal } from './PhaseModal';
 import { ScenarioSelect } from './ScenarioSelect';
 import { SubmitModal } from './SubmitModal';
 import { Leaderboard } from './Leaderboard';
+import { ScoreSummary } from './ScoreSummary';
 import { submitScore, fetchLeaderboard } from './api';
 import type { AppMode, PlayerPiece, Scenario, LeaderboardEntry } from './types';
 import { key } from './bfs';
@@ -21,6 +22,7 @@ export default function App() {
   const [leaderboardHighlight, setLeaderboardHighlight] = useState<string | undefined>();
   const [leaderboardRefreshKey, setLeaderboardRefreshKey] = useState(0);
   const [leaderboardInitialEntries, setLeaderboardInitialEntries] = useState<LeaderboardEntry[] | undefined>();
+  const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | undefined>();
 
 
   // Game state — reinitialised when mode/scenario changes
@@ -115,9 +117,20 @@ export default function App() {
     const cumulativeProb = state.actionLog.length > 0
       ? state.actionLog[state.actionLog.length - 1].cumulativeProb
       : 1;
-    const dodgeCount = state.actionLog.filter(e => e.dodgeTarget !== null || e.isGfi).length;
+    const riskyMoves = state.actionLog.filter(e => e.dodgeTarget !== null || e.isGfi);
+    const dodgeCount = riskyMoves.length;
+    const moves = riskyMoves.map(e => ({
+      pieceName: e.pieceName,
+      pieceRole: e.pieceRole,
+      from: e.from,
+      to: e.to,
+      dodgeTarget: e.dodgeTarget,
+      isGfi: e.isGfi,
+      actionProb: e.actionProb,
+      cumulativeProb: e.cumulativeProb,
+    }));
     try {
-      const entry = await submitScore(activeScenario.id, name, cumulativeProb, dodgeCount);
+      const entry = await submitScore(activeScenario.id, name, cumulativeProb, dodgeCount, moves);
       setLeaderboardHighlight(entry.id);
       setState(s => ({ ...s, phase: 'playing' }));
       setAppMode('leaderboard');
@@ -150,6 +163,16 @@ export default function App() {
   }
 
   if (appMode === 'leaderboard' && activeScenario) {
+    if (selectedEntry) {
+      return (
+        <div className="app app--home">
+          <ScoreSummary
+            entry={selectedEntry}
+            onBack={() => setSelectedEntry(undefined)}
+          />
+        </div>
+      );
+    }
     return (
       <div className="app app--home">
         <Leaderboard
@@ -159,6 +182,7 @@ export default function App() {
           highlightId={leaderboardHighlight}
           initialEntries={leaderboardInitialEntries}
           onEntriesLoaded={setLeaderboardInitialEntries}
+          onRowClick={setSelectedEntry}
         />
       </div>
     );
