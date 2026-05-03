@@ -1,5 +1,6 @@
 # Agent Guidelines
 
+
 ## Repository Layout
 
 ```

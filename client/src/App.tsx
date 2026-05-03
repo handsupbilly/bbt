@@ -193,6 +193,11 @@ export default function App() {
     setAppMode('home');
   }, [setState]);
 
+  const handleRestartTurn = useCallback(() => {
+    if (!activeScenario) return;
+    setState(makeScenarioState(activeScenario));
+  }, [activeScenario, setState]);
+
   // ── Render: non-game screens ─────────────────────────────────────────────
   if (appMode === 'home') {
     return (
@@ -295,6 +300,10 @@ export default function App() {
         </div>
 
         <div className="hud__status">{activationStatus}</div>
+
+        {state.isPuzzleMode && (
+          <button className="hud__restart" onClick={handleRestartTurn}>↺ Restart</button>
+        )}
       </header>
 
       <div className="legend">

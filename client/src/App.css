@@ -54,6 +54,19 @@ body,
 }
 .hud__back:hover { color: #ccc; border-color: #666; }
 
+.hud__restart {
+  background: transparent;
+  border: 1px solid #553333;
+  color: #c07070;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.hud__restart:hover { color: #e09090; border-color: #884444; }
+
 /* Live probability (puzzle mode) */
 .hud__prob {
   display: flex;
