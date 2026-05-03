@@ -1,0 +1,78 @@
+{
+  "id": "scenario-002",
+  "name": "The Handoff Play",
+  "description": "The thrower can't reach the end zone alone. Hand off to the catcher and dodge through the orc line.",
+  "activeTeam": "human",
+  "pieces": [
+    {
+      "id": "thrower",
+      "team": "human",
+      "role": "thrower",
+      "name": "Aldric Swiftfoot",
+      "ma": 6, "st": 3, "ag": 3, "av": 8,
+      "skills": ["Block"],
+      "position": { "col": 7, "row": 14 },
+      "hasBall": true
+    },
+    {
+      "id": "catcher",
+      "team": "human",
+      "role": "catcher",
+      "name": "Sera Quickhand",
+      "ma": 8, "st": 2, "ag": 4, "av": 7,
+      "skills": ["Catch", "Dodge"],
+      "position": { "col": 7, "row": 8 },
+      "hasBall": false
+    },
+    {
+      "id": "orc1",
+      "team": "orc",
+      "role": "blocker",
+      "name": "Grukk Ironjaw",
+      "ma": 4, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Animosity"],
+      "position": { "col": 6, "row": 12 },
+      "hasBall": false
+    },
+    {
+      "id": "orc2",
+      "team": "orc",
+      "role": "blocker",
+      "name": "Muzgash Skullkrak",
+      "ma": 4, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Animosity"],
+      "position": { "col": 8, "row": 12 },
+      "hasBall": false
+    },
+    {
+      "id": "orc3",
+      "team": "orc",
+      "role": "blitzer",
+      "name": "Vrak Bonecruncher",
+      "ma": 6, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Block"],
+      "position": { "col": 5, "row": 9 },
+      "hasBall": false
+    },
+    {
+      "id": "orc4",
+      "team": "orc",
+      "role": "blitzer",
+      "name": "Skrag Headsmash",
+      "ma": 6, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Block"],
+      "position": { "col": 4, "row": 7 },
+      "hasBall": false
+    },
+    {
+      "id": "orc5",
+      "team": "orc",
+      "role": "blocker",
+      "name": "Dorg Gutripper",
+      "ma": 4, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Animosity"],
+      "position": { "col": 7, "row": 5 },
+      "hasBall": false
+    }
+  ]
+}

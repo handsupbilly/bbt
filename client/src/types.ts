@@ -47,7 +47,7 @@ export interface Scenario {
 
 // ── Game ────────────────────────────────────────────────────────────────────
 
-export type ActionLogEntry = {
+export type MoveLogEntry = {
   kind: 'move';
   pieceName: string;
   pieceRole: string;
@@ -59,6 +59,24 @@ export type ActionLogEntry = {
   actionProb: number;          // probability of this step alone (1 if no roll needed)
   cumulativeProb: number;      // running product up to and including this step
 };
+
+export type HandoffLogEntry = {
+  kind: 'handoff';
+  pieceName: string;       // carrier
+  pieceRole: string;
+  receiverName: string;
+  receiverRole: string;
+  from: Position;          // carrier position
+  to: Position;            // receiver position
+  catchTarget: number;     // roll needed (e.g. 2)
+  actionProb: number;      // success chance of this roll alone
+  cumulativeProb: number;  // running product including this roll
+  // These mirror MoveLogEntry fields so existing risky-move filters work unchanged
+  dodgeTarget: null;
+  isGfi: false;
+};
+
+export type ActionLogEntry = MoveLogEntry | HandoffLogEntry;
 
 export type GamePhase =
   | 'playing'
@@ -94,6 +112,11 @@ export interface GameState {
   actionLog: ActionLogEntry[];
   isPuzzleMode: boolean;
   scenarioId: string | null;
+  // Handoff
+  passUsed: boolean;           // one handoff allowed per team turn
+  pendingHandoff: boolean;     // carrier declared handoff — move first, then pick receiver
+  isHandoffTargeting: boolean; // carrier finished moving, now picking a receiver
+  handoffTargets: Set<string>; // keys of adjacent eligible receivers
 }
 
 // ── Leaderboard ─────────────────────────────────────────────────────────────
@@ -101,10 +124,13 @@ export interface GameState {
 export interface RiskyMove {
   pieceName: string;
   pieceRole: string;
+  receiverName?: string;   // handoff only
+  receiverRole?: string;   // handoff only
   from: Position;
   to: Position;
   dodgeTarget: number | null;
   isGfi: boolean;
+  catchTarget?: number;    // handoff only
   actionProb: number;
   cumulativeProb: number;
 }

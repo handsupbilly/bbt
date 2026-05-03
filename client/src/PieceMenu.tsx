@@ -19,6 +19,7 @@ interface Props {
 
 const ACTIONS: PieceMenuAction[] = [
   { label: 'Move', key: 'move' },
+  { label: 'Hand Off', key: 'handoff' },
 ];
 
 export { ACTIONS as DEFAULT_ACTIONS };

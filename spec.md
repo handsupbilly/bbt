@@ -2,6 +2,218 @@
 
 ---
 
+## Handoff Action
+
+### Overview
+
+A ball carrier can hand off the ball to an adjacent teammate at the end of their activation. The receiver must make a Catch roll. Success transfers the ball; failure causes a turnover (no submission).
+
+This counts as the team's **Pass action** — only one handoff per team turn.
+
+---
+
+### Rules
+
+**Eligibility**
+- The ball carrier must be selected and have finished (or skipped) their movement.
+- The receiver must be in one of the 8 adjacent squares.
+- The receiver must not already be activated.
+- No handoff has been performed this turn (`passUsed` flag).
+
+**Catch Roll**
+- Target = `max(2, min(6, (6 - receiver.ag) - 1 + tzCount))`
+  - `6 - receiver.ag` is the base (same as dodge base)
+  - `−1` for accurate pass (handoff always counts as accurate)
+  - `+1` per opposing tackle zone covering the receiver's square
+- Example: AG 3, no TZs → `6 - 3 - 1 = 2+` (5/6 ≈ 83.3%)
+
+**Success**
+- Ball transfers to the receiver (`hasBall` flips from carrier to receiver).
+- Receiver is **not** marked activated — they can still be selected and moved this turn.
+- Carrier is marked activated.
+
+**Failure (in this puzzle context)**
+- Catch failure = turnover. No submission. Same treatment as a failed dodge.
+- *(Ball bounce/scatter is not simulated — failure simply ends the attempt.)*
+
+**Probability tracking**
+- The catch roll probability is logged as an `ActionLogEntry` with `kind: 'handoff'` and multiplied into `cumulativeProb`, exactly like a dodge step.
+
+---
+
+### Data Model Changes
+
+**`types.ts`**
+
+Add `passUsed` to `GameState`:
+```ts
+passUsed: boolean;  // true once a handoff has been performed this turn
+```
+
+Add `kind: 'handoff'` variant to `ActionLogEntry`:
+```ts
+export type ActionLogEntry =
+  | { kind: 'move'; ... }          // existing
+  | {
+      kind: 'handoff';
+      pieceName: string;            // carrier name
+      pieceRole: string;
+      receiverName: string;
+      receiverRole: string;
+      from: Position;               // carrier position
+      to: Position;                 // receiver position
+      catchTarget: number;          // the roll needed (e.g. 2)
+      actionProb: number;           // success chance of this roll alone
+      cumulativeProb: number;       // running product including this roll
+    };
+```
+
+Add `passUsed: boolean` to `RiskyMove` is **not** needed — handoff entries are already captured via `ActionLogEntry` and filtered into `moves` by the existing risky-move logic (any entry where `actionProb < 1`).
+
+---
+
+### UI Flow
+
+1. Player selects the ball carrier → moves them (or skips movement by clicking the piece again).
+2. After movement is committed (piece is at its destination), the **PieceMenu** gains a **"Hand Off"** action alongside "Move".
+   - "Hand Off" is disabled if `passUsed` is true or if no eligible adjacent receiver exists.
+3. Player clicks "Hand Off" → game enters `handoff_targeting` phase.
+   - Adjacent eligible receivers are highlighted (reachable-style highlight, distinct colour).
+   - Clicking a highlighted receiver square executes the handoff.
+   - Clicking elsewhere or pressing Escape cancels back to normal.
+4. Handoff resolves:
+   - Catch target is computed and logged.
+   - `hasBall` transfers on the piece objects.
+   - `passUsed` is set to `true`.
+   - Carrier is marked `activated`.
+   - The receiver is **not** activated — player can now select and move them.
+
+---
+
+### Implementation Plan
+
+1. **`types.ts`**: Add `passUsed: boolean` to `GameState`; add `kind: 'handoff'` to `ActionLogEntry`.
+2. **`bfs.ts`**: Add `catchTargetAt(receiverPos, receiverAg, opponentPositions)` — same shape as `dodgeTargetAt` but with the `−1` accurate modifier.
+3. **`useGameState.ts`**:
+   - Add `passUsed: false` to `makeBlankState`.
+   - Reset `passUsed` in `advanceTurn` and `clearSelection`.
+   - Add `handleHandoffTarget(col, row)` action: finds receiver, computes catch target, logs entry, transfers ball, marks carrier activated, sets `passUsed`.
+   - Expose `handoffTargets: Set<string>` in state (adjacent eligible receivers) when in handoff targeting mode.
+4. **`GameState`**: Add `handoffTargets: Set<string>` and `isHandoffTargeting: boolean` fields.
+5. **`PieceMenu.tsx`**: "Hand Off" action key `'handoff'`; disabled when `passUsed || handoffTargets.size === 0`.
+6. **`App.tsx`**: Wire `onAction('handoff')` to enter handoff targeting mode; wire `onSquareClick` to call `handleHandoffTarget` when `isHandoffTargeting`.
+7. **`Pitch.tsx`**: Highlight `handoffTargets` squares with a distinct CSS class (`square--handoff-target`).
+8. **`Pitch.css`**: Style `square--handoff-target` (e.g. green tint, distinct from reachable blue).
+9. **`SubmitModal.tsx` / `ScoreSummary.tsx`**: Handle `kind: 'handoff'` rows — display as "Handoff" in the Type column, receiver name in Player column, catch target as the roll.
+10. **`scenario-002.json`**: New scenario using the handoff play (see below).
+
+---
+
+## Scenario 002 — The Handoff Play
+
+### Concept
+
+The thrower has the ball but cannot reach the end zone alone. A catcher is positioned ahead, within handoff range after the thrower moves. Five orcs block the path. The optimal play is: thrower moves to the catcher's vicinity, hands off, catcher dodges through the remaining orcs and scores.
+
+### Piece Layout (portrait coordinates: col 0–14, row 0–25; end zone = row 0 for humans)
+
+| ID | Team | Role | Name | MA | AG | Position | Ball |
+|---|---|---|---|---|---|---|---|
+| `thrower` | human | thrower | Aldric Swiftfoot | 6 | 3 | col 7, row 14 | ✅ |
+| `catcher` | human | catcher | Sera Quickhand | 8 | 4 | col 7, row 8 | ❌ |
+| `orc1` | orc | blocker | Grukk Ironjaw | 4 | 3 | col 6, row 12 | ❌ |
+| `orc2` | orc | blocker | Muzgash Skullkrak | 4 | 3 | col 8, row 12 | ❌ |
+| `orc3` | orc | blitzer | Vrak Bonecruncher | 6 | 3 | col 6, row 9 | ❌ |
+| `orc4` | orc | blitzer | Skrag Headsmash | 6 | 3 | col 8, row 9 | ❌ |
+| `orc5` | orc | blocker | Dorg Gutripper | 4 | 3 | col 7, row 5 | ❌ |
+
+### Intended Play
+
+1. **Thrower** (MA 6) moves from row 14 toward row 9, dodging past orc1/orc2 (TZ coverage), ending adjacent to the catcher at row 8. Hands off.
+2. **Catcher** (MA 8, AG 4) catches (2+ base with accurate modifier), then moves from row 8 toward row 0, dodging past orc3/orc4 and orc5, scoring a touchdown.
+
+### Scenario JSON
+
+```json
+{
+  "id": "scenario-002",
+  "name": "The Handoff Play",
+  "description": "The thrower can't reach the end zone alone. Hand off to the catcher and dodge through the orc line.",
+  "activeTeam": "human",
+  "pieces": [
+    {
+      "id": "thrower", "team": "human", "role": "thrower",
+      "name": "Aldric Swiftfoot",
+      "ma": 6, "st": 3, "ag": 3, "av": 8,
+      "skills": ["Block"],
+      "position": { "col": 7, "row": 14 },
+      "hasBall": true
+    },
+    {
+      "id": "catcher", "team": "human", "role": "catcher",
+      "name": "Sera Quickhand",
+      "ma": 8, "st": 2, "ag": 4, "av": 7,
+      "skills": ["Catch", "Dodge"],
+      "position": { "col": 7, "row": 8 },
+      "hasBall": false
+    },
+    {
+      "id": "orc1", "team": "orc", "role": "blocker",
+      "name": "Grukk Ironjaw",
+      "ma": 4, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Animosity"],
+      "position": { "col": 6, "row": 12 },
+      "hasBall": false
+    },
+    {
+      "id": "orc2", "team": "orc", "role": "blocker",
+      "name": "Muzgash Skullkrak",
+      "ma": 4, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Animosity"],
+      "position": { "col": 8, "row": 12 },
+      "hasBall": false
+    },
+    {
+      "id": "orc3", "team": "orc", "role": "blitzer",
+      "name": "Vrak Bonecruncher",
+      "ma": 6, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Block"],
+      "position": { "col": 6, "row": 9 },
+      "hasBall": false
+    },
+    {
+      "id": "orc4", "team": "orc", "role": "blitzer",
+      "name": "Skrag Headsmash",
+      "ma": 6, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Block"],
+      "position": { "col": 8, "row": 9 },
+      "hasBall": false
+    },
+    {
+      "id": "orc5", "team": "orc", "role": "blocker",
+      "name": "Dorg Gutripper",
+      "ma": 4, "st": 3, "ag": 3, "av": 9,
+      "skills": ["Animosity"],
+      "position": { "col": 7, "row": 5 },
+      "hasBall": false
+    }
+  ]
+}
+```
+
+### Acceptance Criteria
+
+1. Thrower can move up to MA 6, then the PieceMenu shows "Hand Off" if the catcher is adjacent.
+2. Clicking "Hand Off" highlights the catcher's square.
+3. Clicking the catcher executes the handoff: catch target computed, logged, ball transfers.
+4. Catcher (not yet activated) can then be selected and moved to the end zone.
+5. Touchdown triggers the submission flow with cumulative probability including the catch roll.
+6. Scenario appears in the scenario select screen alongside scenario-001.
+
+---
+
+---
+
 ## Problem Statement
 
 A browser-based Blood Bowl puzzle game.

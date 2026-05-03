@@ -11,6 +11,7 @@ function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b);
 function cumFraction(moves: LeaderboardEntry['moves']): string {
   let num = 1, den = 1;
   for (const m of moves) {
+    if (m.catchTarget !== undefined) { num *= (7 - m.catchTarget); den *= 6; continue; }
     if (m.isGfi) { num *= 5; den *= 6; }
     if (m.dodgeTarget !== null) { num *= (7 - m.dodgeTarget); den *= 6; }
   }
@@ -20,11 +21,20 @@ function cumFraction(moves: LeaderboardEntry['moves']): string {
 function colLabel(col: number) { return String.fromCharCode(65 + col); }
 function posLabel(p: { col: number; row: number }) { return `${colLabel(p.col)}${p.row + 1}`; }
 function actionLabel(m: LeaderboardEntry['moves'][number]): string {
+  if (m.catchTarget !== undefined) return `Handoff ${m.catchTarget}+`;
   if (m.isGfi && m.dodgeTarget !== null) return `GFI 2+ · Dodge ${m.dodgeTarget}+`;
   if (m.isGfi) return 'Go For It 2+';
   return `Dodge ${m.dodgeTarget}+`;
 }
-function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function playerName(m: LeaderboardEntry['moves'][number]): string {
+  if (m.catchTarget !== undefined && m.receiverName) return `${m.pieceName} → ${m.receiverName}`;
+  return m.pieceName;
+}
+function playerRole(m: LeaderboardEntry['moves'][number]): string {
+  const role = (m.catchTarget !== undefined && m.receiverRole) ? m.receiverRole : m.pieceRole;
+  return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
 
 export function ScoreSummary({ entry, onBack }: Props) {
   const moves = entry.moves ?? [];
@@ -55,8 +65,8 @@ export function ScoreSummary({ entry, onBack }: Props) {
           </div>
           {moves.map((m, i) => (
             <div key={i} className="score-summary__move-row">
-              <span className="score-summary__move-name">{m.pieceName}</span>
-              <span className="score-summary__move-role">{capitalize(m.pieceRole)}</span>
+              <span className="score-summary__move-name">{playerName(m)}</span>
+              <span className="score-summary__move-role">{playerRole(m)}</span>
               <span className="score-summary__move-pos">{posLabel(m.from)} → {posLabel(m.to)}</span>
               <span className="score-summary__move-action">{actionLabel(m)}</span>
               <span className="score-summary__move-prob">{pct(m.actionProb)}</span>

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { GameState, PlayerPiece, Position, ActionLogEntry, Scenario } from './types';
-import { computeReachable, findShortestPath, key } from './bfs';
+import { computeReachable, findShortestPath, key, neighbours, catchTargetAt } from './bfs';
 
 const TURNS_PER_HALF = 8;
 const ROWS = 26;
@@ -37,6 +37,10 @@ function makeBlankState(overrides: Partial<GameState> = {}): GameState {
     actionLog: [],
     isPuzzleMode: false,
     scenarioId: null,
+    passUsed: false,
+    pendingHandoff: false,
+    isHandoffTargeting: false,
+    handoffTargets: new Set(),
     ...overrides,
   };
 }
@@ -91,6 +95,9 @@ function clearSelection(state: GameState, cancelActivation = false): GameState {
     pendingDodgeTargets: [],
     pendingProb: 1,
     activationLogStart: 0,
+    pendingHandoff: false,
+    isHandoffTargeting: false,
+    handoffTargets: new Set(),
     actionLog: cancelActivation
       ? state.actionLog.slice(0, state.activationLogStart)
       : state.actionLog,
@@ -132,6 +139,10 @@ function advanceTurn(state: GameState): GameState {
   next.pendingProb = 1;
   next.activationLogStart = 0;
   next.actionLog = [];
+  next.passUsed = false;
+  next.pendingHandoff = false;
+  next.isHandoffTargeting = false;
+  next.handoffTargets = new Set();
   if (!state.isPuzzleMode) {
     if (next.humanTurn > TURNS_PER_HALF && next.orcTurn > TURNS_PER_HALF) {
       next.phase = next.half === 1 ? 'half_over' : 'game_over';
@@ -208,8 +219,46 @@ export function useGameState(initialState: GameState) {
         const dest = prev.committedPath.length > 0
           ? prev.committedPath[prev.committedPath.length - 1]
           : null;
-        // If no moves were made, cancel (roll back log); otherwise commit
         const hasMoved = prev.committedPath.length > 0;
+
+        // Handoff declared — move carrier to destination then open receiver targeting
+        if (prev.pendingHandoff) {
+          const carrierPos = dest ?? prev.originPos!;
+          const carrier = prev.pieces.find(p => p.id === prev.selectedPieceId)!;
+
+          // Move carrier to final position
+          const pieces = prev.pieces.map(p =>
+            p.id === prev.selectedPieceId ? { ...p, position: carrierPos } : p
+          );
+
+          // Find adjacent unactivated teammates from the final position
+          const targets = new Set<string>();
+          for (const n of neighbours(carrierPos)) {
+            const nk = key(n);
+            const piece = pieces.find(p => key(p.position) === nk);
+            if (piece && piece.team === carrier.team && piece.id !== carrier.id && !piece.activated) {
+              targets.add(nk);
+            }
+          }
+
+          if (targets.size === 0) {
+            // No valid receivers — just commit the move normally
+            return clearSelection({ ...prev, pieces }, !hasMoved);
+          }
+
+          return {
+            ...prev,
+            pieces,
+            committedPath: dest ? prev.committedPath : [],
+            reachableKeys: new Set(),
+            pathPreview: [],
+            pendingHandoff: false,
+            isHandoffTargeting: true,
+            handoffTargets: targets,
+          };
+        }
+
+        // Normal end-activation
         const pieces = dest
           ? prev.pieces.map(p => p.id === prev.selectedPieceId ? { ...p, position: dest, activated: true } : p)
           : prev.pieces.map(p => p.id === prev.selectedPieceId ? { ...p, activated: true } : p);
@@ -359,7 +408,110 @@ export function useGameState(initialState: GameState) {
   }, []);
 
   const handleCancelSelection = useCallback(() => {
-    setState(prev => prev.selectedPieceId ? clearSelection(prev, true) : prev);
+    setState(prev => {
+      if (prev.isHandoffTargeting) {
+        // Cancel receiver targeting — stay selected but exit targeting mode
+        return { ...prev, pendingHandoff: false, isHandoffTargeting: false, handoffTargets: new Set() };
+      }
+      return prev.selectedPieceId ? clearSelection(prev, true) : prev;
+    });
+  }, []);
+
+  /**
+   * Called when the player clicks "Hand Off" in the PieceMenu.
+   * Selects the carrier for normal movement (same as "Move") but sets pendingHandoff.
+   * When the player ends the activation, receiver targeting opens automatically.
+   */
+  const handleHandoffAction = useCallback((pieceId: string) => {
+    setState(prev => {
+      if (prev.passUsed) return prev;
+
+      const carrier = prev.pieces.find(p => p.id === pieceId);
+      if (!carrier || !carrier.hasBall || carrier.activated) return prev;
+
+      const { reachableKeys } = recomputeReachable(prev, pieceId, carrier.position, carrier.ma, MAX_GFI);
+
+      return {
+        ...prev,
+        selectedPieceId: pieceId,
+        originPos: carrier.position,
+        committedPath: [],
+        walkedSquares: [],
+        pathPreview: [],
+        remainingMa: carrier.ma,
+        remainingGfi: MAX_GFI,
+        pendingDodgeTargets: [],
+        pendingProb: 1,
+        reachableKeys,
+        activationLogStart: prev.actionLog.length,
+        pendingHandoff: true,
+        isHandoffTargeting: false,
+        handoffTargets: new Set(),
+      };
+    });
+  }, []);
+
+  /**
+   * Called when the player clicks a highlighted receiver square during handoff targeting.
+   * Executes the handoff: logs the catch roll, transfers the ball, marks carrier activated.
+   */
+  const handleHandoffTarget = useCallback((col: number, row: number) => {
+    setState(prev => {
+      if (!prev.isHandoffTargeting || !prev.selectedPieceId) return prev;
+
+      const receiverKey = key({ col, row });
+      if (!prev.handoffTargets.has(receiverKey)) return prev;
+
+      const carrier = prev.pieces.find(p => p.id === prev.selectedPieceId)!;
+      const receiver = prev.pieces.find(p => key(p.position) === receiverKey)!;
+
+      // Carrier's current position (after any movement this activation)
+      const carrierPos = prev.committedPath.length > 0
+        ? prev.committedPath[prev.committedPath.length - 1]
+        : carrier.position;
+
+      const opponents = prev.pieces.filter(p => p.team !== carrier.team).map(p => p.position);
+      const catchTarget = catchTargetAt({ col, row }, receiver.ag, opponents);
+      const actionProb = successChance(catchTarget);
+      const prevCumProb = prev.actionLog.length > 0
+        ? prev.actionLog[prev.actionLog.length - 1].cumulativeProb
+        : 1;
+      const cumulativeProb = prevCumProb * actionProb;
+
+      const handoffEntry: ActionLogEntry = {
+        kind: 'handoff',
+        pieceName: carrier.name,
+        pieceRole: carrier.role ?? carrier.team,
+        receiverName: receiver.name,
+        receiverRole: receiver.role ?? receiver.team,
+        from: carrierPos,
+        to: { col, row },
+        catchTarget,
+        actionProb,
+        cumulativeProb,
+        dodgeTarget: null,
+        isGfi: false,
+      };
+
+      // Move carrier to its committed position, mark activated, transfer ball
+      const pieces = prev.pieces.map(p => {
+        if (p.id === carrier.id) {
+          return { ...p, position: carrierPos, activated: true, hasBall: false };
+        }
+        if (p.id === receiver.id) {
+          return { ...p, hasBall: true };
+        }
+        return p;
+      });
+
+      return clearSelection({
+        ...prev,
+        pieces,
+        passUsed: true,
+        actionLog: [...prev.actionLog, handoffEntry],
+        pendingProb: prev.pendingProb * actionProb,
+      });
+    });
   }, []);
 
   const handleEndTurn = useCallback(() => {
@@ -386,5 +538,5 @@ export function useGameState(initialState: GameState) {
     });
   }, []);
 
-  return { state, setState, handleSquareClick, handleSquareHover, handleSquareLeave, handleCancelSelection, handleEndTurn, handleContinue };
+  return { state, setState, handleSquareClick, handleSquareHover, handleSquareLeave, handleCancelSelection, handleEndTurn, handleContinue, handleHandoffAction, handleHandoffTarget };
 }

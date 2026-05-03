@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useGameState, makeFreePlayState, makeScenarioState } from './useGameState';
 import { Pitch } from './Pitch';
-import { PieceMenu, DEFAULT_ACTIONS } from './PieceMenu';
+import { PieceMenu } from './PieceMenu';
+import type { PieceMenuAction } from './PieceMenu';
 import { PlayerPanel } from './PlayerPanel';
 import { DiceLog } from './DiceLog';
 import { PhaseModal } from './PhaseModal';
@@ -26,9 +27,9 @@ export default function App() {
 
 
   // Game state — reinitialised when mode/scenario changes
-  const { state, setState, handleSquareClick, handleSquareHover: hookSquareHover,
+  const { state, setState, handleSquareClick: hookSquareClick, handleSquareHover: hookSquareHover,
           handleSquareLeave: hookSquareLeave, handleCancelSelection,
-          handleContinue }
+          handleContinue, handleHandoffAction, handleHandoffTarget }
     = useGameState(makeFreePlayState());
 
   const startFreePlay = useCallback(() => {
@@ -48,6 +49,15 @@ export default function App() {
     setAppMode('leaderboard');
   }, []);
 
+  // Route square clicks: handoff targeting takes priority over normal movement
+  const handleSquareClick = useCallback((col: number, row: number) => {
+    if (state.isHandoffTargeting) {
+      handleHandoffTarget(col, row);
+    } else {
+      hookSquareClick(col, row);
+    }
+  }, [state.isHandoffTargeting, handleHandoffTarget, hookSquareClick]);
+
   // Escape key
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleCancelSelection(); };
@@ -63,15 +73,25 @@ export default function App() {
     const piece = state.pieces.find(p => key(p.position) === k);
     if (!piece) return;
 
+    // During handoff targeting, clicking a highlighted receiver executes the handoff
+    if (state.isHandoffTargeting) {
+      if (state.handoffTargets.has(k)) {
+        handleHandoffTarget(col, row);
+      } else {
+        handleCancelSelection();
+      }
+      return;
+    }
+
     // If a piece is already selected and this is a reachable square — treat as a move waypoint
     if (state.selectedPieceId && state.reachableKeys.has(k)) {
-      handleSquareClick(col, row);
+      hookSquareClick(col, row);
       return;
     }
 
     // Clicking the already-selected piece ends activation
     if (piece.id === state.selectedPieceId) {
-      handleSquareClick(col, row);
+      hookSquareClick(col, row);
       return;
     }
 
@@ -82,17 +102,21 @@ export default function App() {
     }
 
     // Anything else (opponent, activated piece) — fall through to normal click
-    handleSquareClick(col, row);
-  }, [state.pieces, state.selectedPieceId, state.reachableKeys, state.activeTeam, handleSquareClick]);
+    hookSquareClick(col, row);
+  }, [state.pieces, state.selectedPieceId, state.reachableKeys, state.activeTeam,
+      state.isHandoffTargeting, state.handoffTargets,
+      hookSquareClick, handleHandoffTarget, handleCancelSelection]);
 
   const handleMenuAction = useCallback((actionKey: string) => {
     if (!pieceMenu) return;
     setPieceMenu(null);
     if (actionKey === 'move') {
       const { col, row } = pieceMenu.piece.position;
-      handleSquareClick(col, row);
+      hookSquareClick(col, row);
+    } else if (actionKey === 'handoff') {
+      handleHandoffAction(pieceMenu.piece.id);
     }
-  }, [pieceMenu, handleSquareClick]);
+  }, [pieceMenu, hookSquareClick, handleHandoffAction]);
 
   const dismissMenu = useCallback(() => setPieceMenu(null), []);
 
@@ -117,18 +141,38 @@ export default function App() {
     const cumulativeProb = state.actionLog.length > 0
       ? state.actionLog[state.actionLog.length - 1].cumulativeProb
       : 1;
-    const riskyMoves = state.actionLog.filter(e => e.dodgeTarget !== null || e.isGfi);
+    // Risky moves: dodge/GFI steps AND handoff catch rolls
+    const riskyMoves = state.actionLog.filter(e =>
+      e.kind === 'handoff' || e.dodgeTarget !== null || e.isGfi
+    );
     const dodgeCount = riskyMoves.length;
-    const moves = riskyMoves.map(e => ({
-      pieceName: e.pieceName,
-      pieceRole: e.pieceRole,
-      from: e.from,
-      to: e.to,
-      dodgeTarget: e.dodgeTarget,
-      isGfi: e.isGfi,
-      actionProb: e.actionProb,
-      cumulativeProb: e.cumulativeProb,
-    }));
+    const moves = riskyMoves.map(e => {
+      if (e.kind === 'handoff') {
+        return {
+          pieceName: e.pieceName,
+          pieceRole: e.pieceRole,
+          receiverName: e.receiverName,
+          receiverRole: e.receiverRole,
+          from: e.from,
+          to: e.to,
+          dodgeTarget: null as null,
+          isGfi: false as false,
+          catchTarget: e.catchTarget,
+          actionProb: e.actionProb,
+          cumulativeProb: e.cumulativeProb,
+        };
+      }
+      return {
+        pieceName: e.pieceName,
+        pieceRole: e.pieceRole,
+        from: e.from,
+        to: e.to,
+        dodgeTarget: e.dodgeTarget,
+        isGfi: e.isGfi,
+        actionProb: e.actionProb,
+        cumulativeProb: e.cumulativeProb,
+      };
+    });
     try {
       const entry = await submitScore(activeScenario.id, name, cumulativeProb, dodgeCount, moves);
       setLeaderboardHighlight(entry.id);
@@ -195,10 +239,14 @@ export default function App() {
 
   const teamLabel = state.activeTeam === 'human' ? 'Human' : 'Orc';
   const activePiece = state.pieces.find(p => p.team === state.activeTeam);
-  const activationStatus = activePiece?.activated && !state.selectedPieceId
+  const activationStatus = state.isHandoffTargeting
+    ? 'Select a receiver to hand off to · Esc to cancel'
+    : state.pendingHandoff
+    ? `Hand Off declared — move up to ${state.remainingMa} MA, then click piece to hand off · Esc to cancel`
+    : activePiece?.activated && !state.selectedPieceId
     ? 'Piece activated — end your turn'
     : state.selectedPieceId
-    ? `Planning — ${state.remainingMa} MA left · End Turn to confirm · Esc to cancel`
+    ? `Planning — ${state.remainingMa} MA left · Esc to cancel`
     : 'Select your piece to move';
 
   const currentTurn = state.activeTeam === 'human' ? state.humanTurn : state.orcTurn;
@@ -208,7 +256,7 @@ export default function App() {
   const lastCommittedProb = state.actionLog.length > 0
     ? state.actionLog[state.actionLog.length - 1].cumulativeProb : 1;
   const liveProbPct = Math.round(lastCommittedProb * state.pendingProb * 100);
-  const showProb = state.actionLog.some(e => e.dodgeTarget !== null || e.isGfi) || state.pendingDodgeTargets.length > 0;
+  // Always show in puzzle mode — starts at 100% and decreases as risky moves are added
 
   return (
     <div className="app">
@@ -225,7 +273,7 @@ export default function App() {
           </div>
         )}
 
-        {state.isPuzzleMode && showProb && (
+        {state.isPuzzleMode && (
           <div className="hud__prob">
             <span className="hud__prob-label">Success chance</span>
             <span className={`hud__prob-value ${liveProbPct < 50 ? 'hud__prob-value--risky' : ''}`}>
@@ -297,16 +345,24 @@ export default function App() {
       )}
 
       {/* Piece context menu */}
-      {pieceMenu && (
-        <PieceMenu
-          piece={pieceMenu.piece}
-          x={pieceMenu.x}
-          y={pieceMenu.y}
-          actions={DEFAULT_ACTIONS}
-          onAction={handleMenuAction}
-          onDismiss={dismissMenu}
-        />
-      )}
+      {pieceMenu && (() => {
+        const menuPiece = pieceMenu.piece;
+        const canHandoff = menuPiece.hasBall && !state.passUsed && !menuPiece.activated;
+        const menuActions: PieceMenuAction[] = [
+          { label: 'Move', key: 'move' },
+          { label: 'Hand Off', key: 'handoff', disabled: !canHandoff },
+        ];
+        return (
+          <PieceMenu
+            piece={menuPiece}
+            x={pieceMenu.x}
+            y={pieceMenu.y}
+            actions={menuActions}
+            onAction={handleMenuAction}
+            onDismiss={dismissMenu}
+          />
+        );
+      })()}
     </div>
   );
 }

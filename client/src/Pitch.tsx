@@ -169,15 +169,16 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
       // Scrimmage: centre of 26-col field → left border of col 13
       const isScrimmage = lCol === 13;
 
-      const previewStep     = previewStepMap.get(k);
-      const isGhost         = ghostKey === k && !piece;
-      const isPreviewGfi    = !!previewStep?.isGfi && !isGhost;
-      const isPreviewDodge  = !!previewStep?.requiresDodge && !isGhost;
-      const isPreviewFree   = !!previewStep && !previewStep.requiresDodge && !previewStep.isGfi && !isGhost;
-      const isReachable     = state.reachableKeys.has(k) && !previewStep && k !== ghostKey;
-      const isInTZ          = tzKeys.has(k) && !isReachable && !previewStep;
-      const walkedStep      = walkedMap.get(k);
-      const isCommitted     = walkedStep !== undefined && !piece && !isGhost;
+      const previewStep       = previewStepMap.get(k);
+      const isGhost           = ghostKey === k && !piece;
+      const isPreviewGfi      = !!previewStep?.isGfi && !isGhost;
+      const isPreviewDodge    = !!previewStep?.requiresDodge && !isGhost;
+      const isPreviewFree     = !!previewStep && !previewStep.requiresDodge && !previewStep.isGfi && !isGhost;
+      const isReachable       = state.reachableKeys.has(k) && !previewStep && k !== ghostKey;
+      const isInTZ            = tzKeys.has(k) && !isReachable && !previewStep;
+      const walkedStep        = walkedMap.get(k);
+      const isCommitted       = walkedStep !== undefined && !piece && !isGhost;
+      const isHandoffTarget   = state.handoffTargets.has(k);
 
       const classes = [
         'square',
@@ -193,6 +194,7 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
         isPreviewGfi  && isPreviewDodge     ? 'square--preview-gfi-dodge' : '',
         isInTZ         ? 'square--tz'            : '',
         isCommitted    ? 'square--path'          : '',
+        isHandoffTarget ? 'square--handoff-target' : '',
       ].filter(Boolean).join(' ');
 
       const squaresWalked = selectedPiece ? selectedPiece.ma - state.remainingMa : 0;

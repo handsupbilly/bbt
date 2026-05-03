@@ -13,6 +13,7 @@ function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b);
 function cumFraction(entries: ActionLogEntry[]): string {
   let num = 1, den = 1;
   for (const e of entries) {
+    if (e.kind === 'handoff') { num *= (7 - e.catchTarget); den *= 6; continue; }
     if (e.isGfi) { num *= 5; den *= 6; }
     if (e.dodgeTarget !== null) { num *= (7 - e.dodgeTarget); den *= 6; }
   }
@@ -23,9 +24,20 @@ function colLabel(col: number) { return String.fromCharCode(65 + col); }
 function posLabel(p: { col: number; row: number }) { return `${colLabel(p.col)}${p.row + 1}`; }
 
 function actionLabel(e: ActionLogEntry): string {
+  if (e.kind === 'handoff') return `Handoff ${e.catchTarget}+`;
   if (e.isGfi && e.dodgeTarget !== null) return `GFI 2+ · Dodge ${e.dodgeTarget}+`;
   if (e.isGfi) return 'Go For It 2+';
   return `Dodge ${e.dodgeTarget}+`;
+}
+
+function entryPlayerName(e: ActionLogEntry): string {
+  if (e.kind === 'handoff') return `${e.pieceName} → ${e.receiverName}`;
+  return e.pieceName;
+}
+
+function entryRole(e: ActionLogEntry): string {
+  if (e.kind === 'handoff') return capitalize(e.receiverRole);
+  return capitalize(e.pieceRole);
 }
 
 function capitalize(s: string): string {
@@ -35,7 +47,7 @@ function capitalize(s: string): string {
 export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
   const [name, setName] = useState('');
 
-  const riskyMoves = actionLog.filter(e => e.isGfi || e.dodgeTarget !== null);
+  const riskyMoves = actionLog.filter(e => e.kind === 'handoff' || e.isGfi || e.dodgeTarget !== null);
   const cumulativeProb = actionLog.length > 0
     ? actionLog[actionLog.length - 1].cumulativeProb
     : 1;
@@ -56,8 +68,8 @@ export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
             </div>
             {riskyMoves.map((entry, i) => (
               <div key={i} className="submit-modal__move-row">
-                <span className="submit-modal__move-name">{entry.pieceName}</span>
-                <span className="submit-modal__move-role">{capitalize(entry.pieceRole)}</span>
+                <span className="submit-modal__move-name">{entryPlayerName(entry)}</span>
+                <span className="submit-modal__move-role">{entryRole(entry)}</span>
                 <span className="submit-modal__move-pos">{posLabel(entry.from)} → {posLabel(entry.to)}</span>
                 <span className="submit-modal__move-action">{actionLabel(entry)}</span>
                 <span className="submit-modal__move-prob">{pct(entry.actionProb)}</span>

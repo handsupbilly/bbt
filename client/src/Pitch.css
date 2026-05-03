@@ -166,6 +166,11 @@
   background: rgba(255, 255, 255, 0.12);
 }
 
+.square--handoff-target .square__overlay {
+  background: rgba(0, 210, 120, 0.35);
+  box-shadow: inset 0 0 0 2px rgba(0, 255, 140, 0.85);
+}
+
 /* ── Pieces ─────────────────────────────────────────────────────────── */
 .piece {
   width: 72%;
@@ -205,8 +210,8 @@
 }
 
 .piece--carrier {
-  border: 2px solid #f5c518 !important;
-  box-shadow: 0 0 0 1px rgba(245,197,24,0.5), 0 2px 8px rgba(245,197,24,0.4) !important;
+  border: 3px solid #e03030 !important;
+  box-shadow: 0 0 0 2px rgba(224,48,48,0.55), 0 2px 10px rgba(224,48,48,0.45) !important;
 }
 
 .piece--ghost {

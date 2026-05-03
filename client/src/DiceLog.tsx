@@ -13,6 +13,7 @@ function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b);
 function cumFraction(log: ActionLogEntry[]): string {
   let num = 1, den = 1;
   for (const e of log) {
+    if (e.kind === 'handoff') { num *= (7 - e.catchTarget); den *= 6; continue; }
     if (e.isGfi) { num *= 5; den *= 6; }
     if (e.dodgeTarget !== null) { num *= (7 - e.dodgeTarget); den *= 6; }
   }
@@ -24,6 +25,7 @@ function colLabel(col: number): string { return String.fromCharCode(65 + col); }
 function posLabel(p: { col: number; row: number }): string { return `${colLabel(p.col)}${p.row + 1}`; }
 
 function entryClass(e: ActionLogEntry): string {
+  if (e.kind === 'handoff') return 'dice-log__entry--handoff';
   if (e.isGfi && e.dodgeTarget !== null) return 'dice-log__entry--gfi-dodge';
   if (e.isGfi) return 'dice-log__entry--gfi';
   if (e.dodgeTarget !== null) return 'dice-log__entry--dodge';
@@ -35,7 +37,7 @@ export function DiceLog({ log, pendingProb }: Props) {
 
   const lastCumProb = log[log.length - 1].cumulativeProb;
   const overallProb = lastCumProb * pendingProb;
-  const hasRoll = log.some(e => e.isGfi || e.dodgeTarget !== null);
+  const hasRoll = log.some(e => e.kind === 'handoff' || e.isGfi || e.dodgeTarget !== null);
 
   return (
     <div className="dice-log">
@@ -45,10 +47,19 @@ export function DiceLog({ log, pendingProb }: Props) {
         <div key={i} className={`dice-log__entry ${entryClass(entry)}`}>
           <span className="dice-log__icon">→</span>
           <span className="dice-log__detail">
-            <span className="dice-log__piece">{entry.pieceName}</span>
+            <span className="dice-log__piece">
+              {entry.kind === 'handoff'
+                ? `${entry.pieceName} → ${entry.receiverName}`
+                : entry.pieceName}
+            </span>
             {' '}{posLabel(entry.from)} → {posLabel(entry.to)}
           </span>
-          {(entry.isGfi || entry.dodgeTarget !== null) && (
+          {entry.kind === 'handoff' ? (
+            <span className="dice-log__prob">
+              <span className="dice-log__handoff-tag">Catch {entry.catchTarget}+</span>
+              {' '}<span className="dice-log__prob-pct">({pct(entry.actionProb)})</span>
+            </span>
+          ) : (entry.isGfi || entry.dodgeTarget !== null) && (
             <span className="dice-log__prob">
               {entry.isGfi && <span className="dice-log__gfi-tag">GFI 2+</span>}
               {entry.dodgeTarget !== null && (

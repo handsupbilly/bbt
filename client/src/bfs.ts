@@ -128,7 +128,7 @@ export interface PathStep {
  * and the full list of opponent positions.
  *
  * BB2020 rule:
- *   base = 7 - AG  (AG3 → 4+, AG4 → 3+, AG2 → 5+)
+ *   base = 6 - AG  (AG3 → 3+, AG4 → 2+, AG2 → 4+)
  *   +1 for each opponent whose tackle zone covers `dest`
  *   clamped to [2, 6]
  */
@@ -136,6 +136,25 @@ export function dodgeTargetAt(dest: Position, ag: number, opponentPositions: Pos
   const base = 6 - ag;
   const tzCount = opponentPositions.filter(op =>
     neighbours(op).some(n => n.col === dest.col && n.row === dest.row)
+  ).length;
+  return Math.min(6, Math.max(2, base + tzCount));
+}
+
+/**
+ * Compute the catch target for a handoff received at `receiverPos`.
+ *
+ * BB2020 handoff rule (accurate pass):
+ *   base = 6 - AG
+ *   −1 for accurate pass (handoff always counts as accurate)
+ *   +1 per opposing tackle zone covering the receiver's square
+ *   clamped to [2, 6]
+ *
+ * Example: AG 3, no TZs → 6 - 3 - 1 = 2+
+ */
+export function catchTargetAt(receiverPos: Position, receiverAg: number, opponentPositions: Position[]): number {
+  const base = 6 - receiverAg - 1;
+  const tzCount = opponentPositions.filter(op =>
+    neighbours(op).some(n => n.col === receiverPos.col && n.row === receiverPos.row)
   ).length;
   return Math.min(6, Math.max(2, base + tzCount));
 }
