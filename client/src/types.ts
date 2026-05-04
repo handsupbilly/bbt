@@ -16,6 +16,7 @@ export interface PlayerPiece {
   ma: number;
   st: number;
   ag: number;
+  pa: number;    // passing ability (lower = better; 6 = can't pass reliably)
   av: number;
   skills: string[];
   activated: boolean;
@@ -31,6 +32,7 @@ export interface ScenarioPieceDef {
   ma: number;
   st: number;
   ag: number;
+  pa: number;
   av: number;
   skills: string[];
   position: Position;
@@ -76,7 +78,36 @@ export type HandoffLogEntry = {
   isGfi: false;
 };
 
-export type ActionLogEntry = MoveLogEntry | HandoffLogEntry;
+export type PassLogEntry = {
+  kind: 'pass';
+  pieceName: string;        // passer
+  pieceRole: string;
+  receiverName: string;
+  receiverRole: string;
+  from: Position;           // passer position
+  to: Position;             // target square
+  passTarget: number;       // pass roll needed
+  rangeBand: 'quick' | 'short' | 'long' | 'bomb';
+  actionProb: number;       // P(accurate pass roll alone)
+  cumulativeProb: number;
+  dodgeTarget: null;
+  isGfi: false;
+};
+
+export type PassCatchLogEntry = {
+  kind: 'pass-catch';
+  pieceName: string;        // receiver
+  pieceRole: string;
+  from: Position;           // target square
+  to: Position;             // same as from
+  catchTarget: number;
+  actionProb: number;       // P(catch roll alone)
+  cumulativeProb: number;
+  dodgeTarget: null;
+  isGfi: false;
+};
+
+export type ActionLogEntry = MoveLogEntry | HandoffLogEntry | PassLogEntry | PassCatchLogEntry;
 
 export type GamePhase =
   | 'playing'
@@ -112,11 +143,17 @@ export interface GameState {
   actionLog: ActionLogEntry[];
   isPuzzleMode: boolean;
   scenarioId: string | null;
+  // Handoff / Pass (shared passUsed flag — one per turn)
+  passUsed: boolean;
   // Handoff
-  passUsed: boolean;           // one handoff allowed per team turn
-  pendingHandoff: boolean;     // carrier declared handoff — move first, then pick receiver
-  isHandoffTargeting: boolean; // carrier finished moving, now picking a receiver
-  handoffTargets: Set<string>; // keys of adjacent eligible receivers
+  pendingHandoff: boolean;
+  isHandoffTargeting: boolean;
+  handoffTargets: Set<string>;
+  // Pass
+  pendingPass: boolean;
+  isPassTargeting: boolean;
+  passRangeKeys: Map<string, 'quick' | 'short' | 'long' | 'bomb'>;
+  passReceiverKeys: Set<string>;
 }
 
 // ── Leaderboard ─────────────────────────────────────────────────────────────
@@ -124,13 +161,15 @@ export interface GameState {
 export interface RiskyMove {
   pieceName: string;
   pieceRole: string;
-  receiverName?: string;   // handoff only
-  receiverRole?: string;   // handoff only
+  receiverName?: string;                              // handoff / pass
+  receiverRole?: string;                              // handoff / pass
   from: Position;
   to: Position;
   dodgeTarget: number | null;
   isGfi: boolean;
-  catchTarget?: number;    // handoff only
+  catchTarget?: number;                               // handoff / pass-catch
+  passTarget?: number;                                // pass
+  rangeBand?: 'quick' | 'short' | 'long' | 'bomb';  // pass
   actionProb: number;
   cumulativeProb: number;
 }

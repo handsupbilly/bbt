@@ -29,7 +29,8 @@ export default function App() {
   // Game state — reinitialised when mode/scenario changes
   const { state, setState, handleSquareClick: hookSquareClick, handleSquareHover: hookSquareHover,
           handleSquareLeave: hookSquareLeave, handleCancelSelection,
-          handleContinue, handleHandoffAction, handleHandoffTarget }
+          handleContinue, handleHandoffAction, handleHandoffTarget,
+          handlePassAction, handlePassTarget }
     = useGameState(makeFreePlayState());
 
   const startFreePlay = useCallback(() => {
@@ -49,14 +50,16 @@ export default function App() {
     setAppMode('leaderboard');
   }, []);
 
-  // Route square clicks: handoff targeting takes priority over normal movement
+  // Route square clicks: targeting modes take priority over normal movement
   const handleSquareClick = useCallback((col: number, row: number) => {
     if (state.isHandoffTargeting) {
       handleHandoffTarget(col, row);
+    } else if (state.isPassTargeting) {
+      handlePassTarget(col, row);
     } else {
       hookSquareClick(col, row);
     }
-  }, [state.isHandoffTargeting, handleHandoffTarget, hookSquareClick]);
+  }, [state.isHandoffTargeting, state.isPassTargeting, handleHandoffTarget, handlePassTarget, hookSquareClick]);
 
   // Escape key
   useEffect(() => {
@@ -77,6 +80,16 @@ export default function App() {
     if (state.isHandoffTargeting) {
       if (state.handoffTargets.has(k)) {
         handleHandoffTarget(col, row);
+      } else {
+        handleCancelSelection();
+      }
+      return;
+    }
+
+    // During pass targeting, clicking a highlighted receiver executes the pass
+    if (state.isPassTargeting) {
+      if (state.passReceiverKeys.has(k)) {
+        handlePassTarget(col, row);
       } else {
         handleCancelSelection();
       }
@@ -115,8 +128,10 @@ export default function App() {
       hookSquareClick(col, row);
     } else if (actionKey === 'handoff') {
       handleHandoffAction(pieceMenu.piece.id);
+    } else if (actionKey === 'pass') {
+      handlePassAction(pieceMenu.piece.id);
     }
-  }, [pieceMenu, hookSquareClick, handleHandoffAction]);
+  }, [pieceMenu, hookSquareClick, handleHandoffAction, handlePassAction]);
 
   const dismissMenu = useCallback(() => setPieceMenu(null), []);
 
@@ -141,36 +156,47 @@ export default function App() {
     const cumulativeProb = state.actionLog.length > 0
       ? state.actionLog[state.actionLog.length - 1].cumulativeProb
       : 1;
-    // Risky moves: dodge/GFI steps AND handoff catch rolls
+    // Risky moves: dodge/GFI steps, handoff catch rolls, pass rolls, pass catch rolls
     const riskyMoves = state.actionLog.filter(e =>
-      e.kind === 'handoff' || e.dodgeTarget !== null || e.isGfi
+      e.kind === 'handoff' || e.kind === 'pass' || e.kind === 'pass-catch' ||
+      e.dodgeTarget !== null || e.isGfi
     );
     const dodgeCount = riskyMoves.length;
     const moves = riskyMoves.map(e => {
       if (e.kind === 'handoff') {
         return {
-          pieceName: e.pieceName,
-          pieceRole: e.pieceRole,
-          receiverName: e.receiverName,
-          receiverRole: e.receiverRole,
-          from: e.from,
-          to: e.to,
-          dodgeTarget: null as null,
-          isGfi: false as false,
+          pieceName: e.pieceName, pieceRole: e.pieceRole,
+          receiverName: e.receiverName, receiverRole: e.receiverRole,
+          from: e.from, to: e.to,
+          dodgeTarget: null as null, isGfi: false as false,
           catchTarget: e.catchTarget,
-          actionProb: e.actionProb,
-          cumulativeProb: e.cumulativeProb,
+          actionProb: e.actionProb, cumulativeProb: e.cumulativeProb,
+        };
+      }
+      if (e.kind === 'pass') {
+        return {
+          pieceName: e.pieceName, pieceRole: e.pieceRole,
+          receiverName: e.receiverName, receiverRole: e.receiverRole,
+          from: e.from, to: e.to,
+          dodgeTarget: null as null, isGfi: false as false,
+          passTarget: e.passTarget, rangeBand: e.rangeBand,
+          actionProb: e.actionProb, cumulativeProb: e.cumulativeProb,
+        };
+      }
+      if (e.kind === 'pass-catch') {
+        return {
+          pieceName: e.pieceName, pieceRole: e.pieceRole,
+          from: e.from, to: e.to,
+          dodgeTarget: null as null, isGfi: false as false,
+          catchTarget: e.catchTarget,
+          actionProb: e.actionProb, cumulativeProb: e.cumulativeProb,
         };
       }
       return {
-        pieceName: e.pieceName,
-        pieceRole: e.pieceRole,
-        from: e.from,
-        to: e.to,
-        dodgeTarget: e.dodgeTarget,
-        isGfi: e.isGfi,
-        actionProb: e.actionProb,
-        cumulativeProb: e.cumulativeProb,
+        pieceName: e.pieceName, pieceRole: e.pieceRole,
+        from: e.from, to: e.to,
+        dodgeTarget: e.dodgeTarget, isGfi: e.isGfi,
+        actionProb: e.actionProb, cumulativeProb: e.cumulativeProb,
       };
     });
     try {
@@ -246,8 +272,12 @@ export default function App() {
   const activePiece = state.pieces.find(p => p.team === state.activeTeam);
   const activationStatus = state.isHandoffTargeting
     ? 'Select a receiver to hand off to · Esc to cancel'
+    : state.isPassTargeting
+    ? 'Select a receiver to throw to · Esc to cancel'
     : state.pendingHandoff
     ? `Hand Off declared — move up to ${state.remainingMa} MA, then click piece to hand off · Esc to cancel`
+    : state.pendingPass
+    ? `Pass declared — move up to ${state.remainingMa} MA, then click piece to throw · Esc to cancel`
     : activePiece?.activated && !state.selectedPieceId
     ? 'Piece activated — end your turn'
     : state.selectedPieceId
@@ -262,6 +292,7 @@ export default function App() {
     ? state.actionLog[state.actionLog.length - 1].cumulativeProb : 1;
   const liveProbPct = Math.round(lastCommittedProb * state.pendingProb * 100);
   // Always show in puzzle mode — starts at 100% and decreases as risky moves are added
+  // (showProb removed — always visible)
 
   return (
     <div className="app">
@@ -311,6 +342,12 @@ export default function App() {
         <span className="legend__item legend__item--free">Free Move</span>
         <span className="legend__item legend__item--gfi">Go For It</span>
         <span className="legend__item legend__item--dodge">Dodge Required</span>
+        {state.isPassTargeting && <>
+          <span className="legend__item legend__item--range-quick">Quick (0–3)</span>
+          <span className="legend__item legend__item--range-short">Short (4–6)</span>
+          <span className="legend__item legend__item--range-long">Long (7–9)</span>
+          <span className="legend__item legend__item--range-bomb">Bomb (10–13)</span>
+        </>}
       </div>
 
       <div className="game-area">
@@ -357,9 +394,11 @@ export default function App() {
       {pieceMenu && (() => {
         const menuPiece = pieceMenu.piece;
         const canHandoff = menuPiece.hasBall && !state.passUsed && !menuPiece.activated;
+        const canPass    = menuPiece.hasBall && !state.passUsed && !menuPiece.activated;
         const menuActions: PieceMenuAction[] = [
-          { label: 'Move', key: 'move' },
+          { label: 'Move',     key: 'move' },
           { label: 'Hand Off', key: 'handoff', disabled: !canHandoff },
+          { label: 'Pass',     key: 'pass',    disabled: !canPass },
         ];
         return (
           <PieceMenu

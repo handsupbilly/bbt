@@ -171,6 +171,17 @@
   box-shadow: inset 0 0 0 2px rgba(0, 255, 140, 0.85);
 }
 
+/* Pass range bands — subtle tints, receiver highlight on top */
+.square--range-quick .square__overlay { background: rgba(255, 240, 60, 0.12); }
+.square--range-short .square__overlay { background: rgba(80, 200, 80, 0.12); }
+.square--range-long  .square__overlay { background: rgba(255, 140, 30, 0.12); }
+.square--range-bomb  .square__overlay { background: rgba(220, 50, 50, 0.12); }
+
+.square--pass-receiver .square__overlay {
+  background: rgba(140, 80, 255, 0.35);
+  box-shadow: inset 0 0 0 2px rgba(180, 120, 255, 0.90);
+}
+
 /* ── Pieces ─────────────────────────────────────────────────────────── */
 .piece {
   width: 72%;

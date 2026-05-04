@@ -109,6 +109,201 @@ Add `passUsed: boolean` to `RiskyMove` is **not** needed — handoff entries are
 
 ---
 
+## Pass Action
+
+### Overview
+
+A ball carrier can declare a Pass action, move up to their full MA, then throw to any teammate within range. The pass roll uses the passer's **PA** stat. Only an accurate pass counts — inaccurate and fumble are treated as turnovers (no submission). No interception is modelled.
+
+This shares the `passUsed` flag with handoff — only one pass/handoff per team turn.
+
+---
+
+### PA Stat
+
+Add `pa: number` to `PlayerPiece` and `ScenarioPieceDef`. Standard values by role:
+
+| Role | PA |
+|---|---|
+| thrower | 3 |
+| catcher | 5 |
+| lineman | 5 |
+| blocker (orc) | 6 |
+| blitzer | 5 |
+
+PA represents the target number before modifiers (lower = better, same convention as AG).
+
+---
+
+### Pass Roll
+
+**Target = `max(2, min(6, pa - rangeModifier + tzCount))`**
+
+Range modifiers (distance = Chebyshev distance from passer to target square):
+
+| Band | Distance | Modifier |
+|---|---|---|
+| Quick Pass | 0–3 | +1 (subtract 1 from target) |
+| Short Pass | 4–6 | 0 |
+| Long Pass | 7–9 | −1 (add 1 to target) |
+| Long Bomb | 10–13 | −2 (add 2 to target) |
+
+TZ modifier: +1 per opposing tackle zone covering the **passer's** square.
+
+Natural 1 always fails (fumble) — modelled by clamping minimum success to 2+, i.e. max target = 6.
+
+**Success (accurate pass)**: ball travels to target square, receiver makes a catch roll.
+
+**Failure**: turnover — same treatment as failed dodge (no submission).
+
+---
+
+### Catch Roll (after accurate pass)
+
+Same formula as handoff catch, but the accurate modifier is already baked into the pass roll result — the catch roll for a pass uses:
+
+**Catch target = `max(2, min(6, (6 - receiver.ag) - 1 + tzCount))`**
+
+(identical to handoff catch — +1 accurate modifier, −1 per TZ on receiver)
+
+---
+
+### Pass Range Overlay
+
+When the player enters pass targeting mode, the pitch shows a range overlay:
+
+- All squares within 13 squares (Chebyshev) are coloured by band:
+  - Quick (0–3): bright yellow tint
+  - Short (4–6): green tint
+  - Long (7–9): orange tint
+  - Long Bomb (10–13): red tint
+- Squares occupied by eligible receivers are highlighted with a distinct border
+- Hovering a receiver square shows the pass target number and catch target in the HUD status
+
+---
+
+### Probability Tracking
+
+Two rolls are logged for a pass play:
+
+1. **Pass roll** — `kind: 'pass'` log entry, `passTarget` field
+2. **Catch roll** — `kind: 'pass-catch'` log entry (or reuse `kind: 'handoff'` with a `passTarget` field)
+
+Both multiply into `cumulativeProb`. The combined probability of a pass play = `P(accurate) × P(catch)`.
+
+---
+
+### Data Model Changes
+
+**`PlayerPiece` and `ScenarioPieceDef`** — add `pa: number`.
+
+**`ActionLogEntry`** — add two new entry types for a pass play:
+
+```ts
+// The throw itself — logged when the pass is declared
+export type PassLogEntry = {
+  kind: 'pass';
+  pieceName: string;        // passer
+  pieceRole: string;
+  receiverName: string;
+  receiverRole: string;
+  from: Position;           // passer position
+  to: Position;             // target square
+  passTarget: number;       // pass roll needed (e.g. 3+)
+  rangeBand: 'quick' | 'short' | 'long' | 'bomb';
+  actionProb: number;       // P(accurate pass roll alone)
+  cumulativeProb: number;   // running product after pass roll
+  dodgeTarget: null;
+  isGfi: false;
+};
+
+// The catch — logged immediately after the pass entry
+export type PassCatchLogEntry = {
+  kind: 'pass-catch';
+  pieceName: string;        // receiver
+  pieceRole: string;
+  from: Position;           // target square (same as pass `to`)
+  to: Position;             // same as from (catch is in place)
+  catchTarget: number;      // catch roll needed
+  actionProb: number;       // P(catch roll alone)
+  cumulativeProb: number;   // running product after catch roll
+  dodgeTarget: null;
+  isGfi: false;
+};
+```
+
+The two entries are always added together. In the log display, the pass row shows the throw (passer, range, pass target) and the catch row shows the receiver and catch target.
+
+**`GameState`** — add:
+```ts
+pendingPass: boolean;        // carrier declared pass — move first, then pick target
+isPassTargeting: boolean;    // carrier finished moving, now picking a throw target
+passRangeKeys: Map<string, 'quick' | 'short' | 'long' | 'bomb'>; // all throwable squares
+passReceiverKeys: Set<string>; // subset: squares with eligible receivers
+```
+
+**`RiskyMove`** — add optional `passTarget`, `rangeBand`, and `catchTarget` fields. A pass play produces two `RiskyMove` entries: one for the throw (`passTarget`, `rangeBand`) and one for the catch (`catchTarget`).
+
+---
+
+### UI Flow
+
+1. Player right-clicks ball carrier → "Pass" in context menu (disabled if `passUsed`).
+2. Carrier is selected for normal movement (`pendingPass: true`). HUD: "Pass declared — move up to N MA, then click piece to throw".
+3. Player moves carrier (or skips), clicks carrier to end activation.
+4. Game enters pass targeting: pitch shows range overlay, eligible receivers highlighted.
+5. Player clicks a receiver → pass executes: pass target computed, catch target computed, both logged, ball transfers, carrier activated.
+6. Receiver is **not** activated — can still move this turn.
+
+---
+
+### `bfs.ts` additions
+
+```ts
+/** Chebyshev distance between two positions */
+export function chebyshevDist(a: Position, b: Position): number
+
+/** Range band for a given distance */
+export function rangeBand(dist: number): 'quick' | 'short' | 'long' | 'bomb' | null  // null = out of range (>13)
+
+/** Range modifier for pass roll (+1 quick, 0 short, -1 long, -2 bomb) */
+export function rangeModifier(band: 'quick' | 'short' | 'long' | 'bomb'): number
+
+/** Pass target number for passer at passerPos throwing to targetPos */
+export function passTargetAt(passerPos: Position, passerPa: number, targetPos: Position, opponentPositions: Position[]): number | null  // null = out of range
+
+/** Compute all throwable squares and their range bands from passerPos */
+export function computePassRange(passerPos: Position): Map<string, 'quick' | 'short' | 'long' | 'bomb'>
+```
+
+---
+
+### Implementation Plan
+
+1. **`types.ts`**: Add `pa` to `PlayerPiece` and `ScenarioPieceDef`; add `PassLogEntry`; add `pendingPass`, `isPassTargeting`, `passRangeKeys`, `passReceiverKeys` to `GameState`; add `passTarget`/`rangeBand` to `RiskyMove`.
+2. **`bfs.ts`**: Add `chebyshevDist`, `rangeBand`, `rangeModifier`, `passTargetAt`, `computePassRange`.
+3. **`useGameState.ts`**: Add `handlePassAction(pieceId)` (same pattern as `handleHandoffAction`); add `handlePassTarget(col, row)`; intercept end-activation when `pendingPass` to open pass targeting; reset `pendingPass`/`isPassTargeting` in `clearSelection`/`advanceTurn`.
+4. **`PieceMenu.tsx`**: Add "Pass" action (disabled when `passUsed` or piece has no `pa`).
+5. **`App.tsx`**: Wire "Pass" menu action; route square clicks through `handlePassTarget` when `isPassTargeting`; update HUD status text.
+6. **`Pitch.tsx`**: Render range overlay squares (`square--range-quick`, `square--range-short`, `square--range-long`, `square--range-bomb`); highlight receiver squares (`square--pass-receiver`).
+7. **`Pitch.css`**: Style range band overlays and receiver highlight.
+8. **`SubmitModal.tsx` / `ScoreSummary.tsx` / `DiceLog.tsx`**: Handle `kind: 'pass'` entries — show passer → receiver, range band, pass target, catch target, combined probability.
+9. **`scenario-001.json` / `scenario-002.json`**: Add `pa` to all pieces.
+10. **`App.tsx` `handleSubmit`**: Include `kind: 'pass'` in risky moves extraction; map `passTarget`/`rangeBand` into `RiskyMove`.
+
+### Acceptance Criteria
+
+1. "Pass" appears in the context menu for ball carriers; disabled if `passUsed`.
+2. Declaring a pass selects the carrier for movement with `pendingPass: true`.
+3. Clicking the carrier to end activation opens pass targeting: range overlay visible, eligible receivers highlighted.
+4. Clicking a receiver executes the pass: pass target and catch target computed and logged, ball transfers, carrier activated.
+5. Receiver can still be activated (moved) after catching.
+6. Pass probability (pass roll × catch roll) multiplies into cumulative probability.
+7. Pass entries appear in Action Log, submit modal, and score summary with range band and both roll targets.
+8. `passUsed` prevents a second pass or handoff in the same turn.
+
+---
+
 ## Scenario 002 — The Handoff Play
 
 ### Concept

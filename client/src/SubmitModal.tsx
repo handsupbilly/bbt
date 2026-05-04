@@ -13,18 +13,26 @@ function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b);
 function cumFraction(entries: ActionLogEntry[]): string {
   let num = 1, den = 1;
   for (const e of entries) {
-    if (e.kind === 'handoff') { num *= (7 - e.catchTarget); den *= 6; continue; }
+    if (e.kind === 'handoff')    { num *= (7 - e.catchTarget); den *= 6; continue; }
+    if (e.kind === 'pass')       { num *= (7 - e.passTarget);  den *= 6; continue; }
+    if (e.kind === 'pass-catch') { num *= (7 - e.catchTarget); den *= 6; continue; }
     if (e.isGfi) { num *= 5; den *= 6; }
     if (e.dodgeTarget !== null) { num *= (7 - e.dodgeTarget); den *= 6; }
   }
   const g = gcd(num, den);
   return `${num / g}/${den / g}`;
 }
+
+const BAND_LABEL: Record<string, string> = {
+  quick: 'Quick', short: 'Short', long: 'Long', bomb: 'Bomb',
+};
 function colLabel(col: number) { return String.fromCharCode(65 + col); }
 function posLabel(p: { col: number; row: number }) { return `${colLabel(p.col)}${p.row + 1}`; }
 
 function actionLabel(e: ActionLogEntry): string {
-  if (e.kind === 'handoff') return `Handoff ${e.catchTarget}+`;
+  if (e.kind === 'handoff')    return `Handoff ${e.catchTarget}+`;
+  if (e.kind === 'pass')       return `${BAND_LABEL[e.rangeBand]} Pass ${e.passTarget}+`;
+  if (e.kind === 'pass-catch') return `Catch ${e.catchTarget}+`;
   if (e.isGfi && e.dodgeTarget !== null) return `GFI 2+ · Dodge ${e.dodgeTarget}+`;
   if (e.isGfi) return 'Go For It 2+';
   return `Dodge ${e.dodgeTarget}+`;
@@ -32,11 +40,14 @@ function actionLabel(e: ActionLogEntry): string {
 
 function entryPlayerName(e: ActionLogEntry): string {
   if (e.kind === 'handoff') return `${e.pieceName} → ${e.receiverName}`;
+  if (e.kind === 'pass')    return `${e.pieceName} → ${e.receiverName}`;
   return e.pieceName;
 }
 
 function entryRole(e: ActionLogEntry): string {
-  if (e.kind === 'handoff') return capitalize(e.receiverRole);
+  if (e.kind === 'handoff')    return capitalize(e.receiverRole);
+  if (e.kind === 'pass')       return capitalize(e.pieceRole);
+  if (e.kind === 'pass-catch') return capitalize(e.pieceRole);
   return capitalize(e.pieceRole);
 }
 
@@ -47,7 +58,9 @@ function capitalize(s: string): string {
 export function SubmitModal({ actionLog, onSubmit, onDismiss }: Props) {
   const [name, setName] = useState('');
 
-  const riskyMoves = actionLog.filter(e => e.kind === 'handoff' || e.isGfi || e.dodgeTarget !== null);
+  const riskyMoves = actionLog.filter(e =>
+    e.kind === 'handoff' || e.kind === 'pass' || e.kind === 'pass-catch' || e.isGfi || e.dodgeTarget !== null
+  );
   const cumulativeProb = actionLog.length > 0
     ? actionLog[actionLog.length - 1].cumulativeProb
     : 1;
