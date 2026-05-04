@@ -179,6 +179,8 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
       const walkedStep        = walkedMap.get(k);
       const isCommitted       = walkedStep !== undefined && !piece && !isGhost;
       const isHandoffTarget   = state.handoffTargets.has(k);
+      const passRangeBand     = state.passRangeKeys.get(k);
+      const isPassReceiver    = state.passReceiverKeys.has(k);
 
       const classes = [
         'square',
@@ -195,6 +197,8 @@ export function Pitch({ state, onSquareClick, onPieceClick, onSquareHover, onSqu
         isInTZ         ? 'square--tz'            : '',
         isCommitted    ? 'square--path'          : '',
         isHandoffTarget ? 'square--handoff-target' : '',
+        passRangeBand  ? `square--range-${passRangeBand}` : '',
+        isPassReceiver ? 'square--pass-receiver' : '',
       ].filter(Boolean).join(' ');
 
       const squaresWalked = selectedPiece ? selectedPiece.ma - state.remainingMa : 0;

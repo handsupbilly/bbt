@@ -1,15 +1,15 @@
 import { useState, useCallback } from 'react';
 import type { GameState, PlayerPiece, Position, ActionLogEntry, Scenario } from './types';
-import { computeReachable, findShortestPath, key, neighbours, catchTargetAt } from './bfs';
+import { computeReachable, findShortestPath, key, neighbours, catchTargetAt, passTargetAt, computePassRange } from './bfs';
 
 const TURNS_PER_HALF = 8;
 const ROWS = 26;
 
 const FREE_PLAY_PIECES: PlayerPiece[] = [
   // Human ball carrier: row 6, col 7 — exactly MA6 from the top end zone (row 0)
-  { id: 'human', team: 'human', role: 'thrower', name: 'Aldric Swiftfoot', position: { col: 7, row: 6 }, ma: 6, st: 3, ag: 3, av: 8, skills: ['Block'], activated: false, hasBall: true },
-  { id: 'orc1',  team: 'orc',   role: 'blocker', name: 'Grukk Ironjaw',     position: { col: 6, row: 4 }, ma: 4, st: 3, ag: 3, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
-  { id: 'orc2',  team: 'orc',   role: 'blocker', name: 'Muzgash Skullkrak', position: { col: 8, row: 4 }, ma: 4, st: 3, ag: 3, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
+  { id: 'human', team: 'human', role: 'thrower', name: 'Aldric Swiftfoot', position: { col: 7, row: 6 }, ma: 6, st: 3, ag: 3, pa: 3, av: 8, skills: ['Block'], activated: false, hasBall: true },
+  { id: 'orc1',  team: 'orc',   role: 'blocker', name: 'Grukk Ironjaw',     position: { col: 6, row: 4 }, ma: 4, st: 3, ag: 3, pa: 6, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
+  { id: 'orc2',  team: 'orc',   role: 'blocker', name: 'Muzgash Skullkrak', position: { col: 8, row: 4 }, ma: 4, st: 3, ag: 3, pa: 6, av: 9, skills: ['Animosity'], activated: false, hasBall: false },
 ];
 
 const MAX_GFI = 2;
@@ -41,6 +41,10 @@ function makeBlankState(overrides: Partial<GameState> = {}): GameState {
     pendingHandoff: false,
     isHandoffTargeting: false,
     handoffTargets: new Set(),
+    pendingPass: false,
+    isPassTargeting: false,
+    passRangeKeys: new Map(),
+    passReceiverKeys: new Set(),
     ...overrides,
   };
 }
@@ -98,6 +102,10 @@ function clearSelection(state: GameState, cancelActivation = false): GameState {
     pendingHandoff: false,
     isHandoffTargeting: false,
     handoffTargets: new Set(),
+    pendingPass: false,
+    isPassTargeting: false,
+    passRangeKeys: new Map(),
+    passReceiverKeys: new Set(),
     actionLog: cancelActivation
       ? state.actionLog.slice(0, state.activationLogStart)
       : state.actionLog,
@@ -143,6 +151,10 @@ function advanceTurn(state: GameState): GameState {
   next.pendingHandoff = false;
   next.isHandoffTargeting = false;
   next.handoffTargets = new Set();
+  next.pendingPass = false;
+  next.isPassTargeting = false;
+  next.passRangeKeys = new Map();
+  next.passReceiverKeys = new Set();
   if (!state.isPuzzleMode) {
     if (next.humanTurn > TURNS_PER_HALF && next.orcTurn > TURNS_PER_HALF) {
       next.phase = next.half === 1 ? 'half_over' : 'game_over';
@@ -220,6 +232,39 @@ export function useGameState(initialState: GameState) {
           ? prev.committedPath[prev.committedPath.length - 1]
           : null;
         const hasMoved = prev.committedPath.length > 0;
+
+        // Pass declared — move carrier to destination then open pass targeting
+        if (prev.pendingPass) {
+          const carrierPos = dest ?? prev.originPos!;
+          const carrier = prev.pieces.find(p => p.id === prev.selectedPieceId)!;
+
+          const pieces = prev.pieces.map(p =>
+            p.id === prev.selectedPieceId ? { ...p, position: carrierPos } : p
+          );
+
+          const passRangeKeys = computePassRange(carrierPos);
+
+          // Eligible receivers: teammates (not carrier, not activated) within range
+          const passReceiverKeys = new Set<string>();
+          for (const [k, _band] of passRangeKeys) {
+            const piece = pieces.find(p => key(p.position) === k);
+            if (piece && piece.team === carrier.team && piece.id !== carrier.id && !piece.activated) {
+              passReceiverKeys.add(k);
+            }
+          }
+
+          return {
+            ...prev,
+            pieces,
+            committedPath: dest ? prev.committedPath : [],
+            reachableKeys: new Set(),
+            pathPreview: [],
+            pendingPass: false,
+            isPassTargeting: true,
+            passRangeKeys,
+            passReceiverKeys,
+          };
+        }
 
         // Handoff declared — move carrier to destination then open receiver targeting
         if (prev.pendingHandoff) {
@@ -410,8 +455,10 @@ export function useGameState(initialState: GameState) {
   const handleCancelSelection = useCallback(() => {
     setState(prev => {
       if (prev.isHandoffTargeting) {
-        // Cancel receiver targeting — stay selected but exit targeting mode
         return { ...prev, pendingHandoff: false, isHandoffTargeting: false, handoffTargets: new Set() };
+      }
+      if (prev.isPassTargeting) {
+        return { ...prev, pendingPass: false, isPassTargeting: false, passRangeKeys: new Map(), passReceiverKeys: new Set() };
       }
       return prev.selectedPieceId ? clearSelection(prev, true) : prev;
     });
@@ -514,6 +561,119 @@ export function useGameState(initialState: GameState) {
     });
   }, []);
 
+  /**
+   * Called when the player clicks "Pass" in the PieceMenu.
+   * Selects the carrier for normal movement with pendingPass: true.
+   * When the player ends activation, pass targeting opens.
+   */
+  const handlePassAction = useCallback((pieceId: string) => {
+    setState(prev => {
+      if (prev.passUsed) return prev;
+      const carrier = prev.pieces.find(p => p.id === pieceId);
+      if (!carrier || !carrier.hasBall || carrier.activated) return prev;
+
+      const { reachableKeys } = recomputeReachable(prev, pieceId, carrier.position, carrier.ma, MAX_GFI);
+
+      return {
+        ...prev,
+        selectedPieceId: pieceId,
+        originPos: carrier.position,
+        committedPath: [],
+        walkedSquares: [],
+        pathPreview: [],
+        remainingMa: carrier.ma,
+        remainingGfi: MAX_GFI,
+        pendingDodgeTargets: [],
+        pendingProb: 1,
+        reachableKeys,
+        activationLogStart: prev.actionLog.length,
+        pendingPass: true,
+        isPassTargeting: false,
+        passRangeKeys: new Map(),
+        passReceiverKeys: new Set(),
+      };
+    });
+  }, []);
+
+  /**
+   * Called when the player clicks a receiver square during pass targeting.
+   * Logs pass roll + catch roll entries, transfers ball, marks carrier activated.
+   */
+  const handlePassTarget = useCallback((col: number, row: number) => {
+    setState(prev => {
+      if (!prev.isPassTargeting || !prev.selectedPieceId) return prev;
+
+      const receiverKey = key({ col, row });
+      if (!prev.passReceiverKeys.has(receiverKey)) return prev;
+
+      const carrier = prev.pieces.find(p => p.id === prev.selectedPieceId)!;
+      const receiver = prev.pieces.find(p => key(p.position) === receiverKey)!;
+
+      const carrierPos = prev.committedPath.length > 0
+        ? prev.committedPath[prev.committedPath.length - 1]
+        : carrier.position;
+
+      const opponents = prev.pieces.filter(p => p.team !== carrier.team).map(p => p.position);
+
+      const passTarget = passTargetAt(carrierPos, carrier.pa, { col, row }, opponents)!;
+      const catchTarget = catchTargetAt({ col, row }, receiver.ag, opponents);
+
+      const passProb  = successChance(passTarget);
+      const catchProb = successChance(catchTarget);
+
+      const prevCumProb = prev.actionLog.length > 0
+        ? prev.actionLog[prev.actionLog.length - 1].cumulativeProb : 1;
+
+      const afterPassCum  = prevCumProb * passProb;
+      const afterCatchCum = afterPassCum * catchProb;
+
+      const band = prev.passRangeKeys.get(receiverKey)!;
+
+      const passEntry: ActionLogEntry = {
+        kind: 'pass',
+        pieceName: carrier.name,
+        pieceRole: carrier.role ?? carrier.team,
+        receiverName: receiver.name,
+        receiverRole: receiver.role ?? receiver.team,
+        from: carrierPos,
+        to: { col, row },
+        passTarget,
+        rangeBand: band,
+        actionProb: passProb,
+        cumulativeProb: afterPassCum,
+        dodgeTarget: null,
+        isGfi: false,
+      };
+
+      const catchEntry: ActionLogEntry = {
+        kind: 'pass-catch',
+        pieceName: receiver.name,
+        pieceRole: receiver.role ?? receiver.team,
+        from: { col, row },
+        to: { col, row },
+        catchTarget,
+        actionProb: catchProb,
+        cumulativeProb: afterCatchCum,
+        dodgeTarget: null,
+        isGfi: false,
+      };
+
+      const pieces = prev.pieces.map(p => {
+        if (p.id === carrier.id)  return { ...p, position: carrierPos, activated: true, hasBall: false };
+        if (p.id === receiver.id) return { ...p, hasBall: true };
+        return p;
+      });
+
+      return clearSelection({
+        ...prev,
+        pieces,
+        passUsed: true,
+        actionLog: [...prev.actionLog, passEntry, catchEntry],
+        pendingProb: prev.pendingProb * passProb * catchProb,
+      });
+    });
+  }, []);
+
   const handleEndTurn = useCallback(() => {
     setState(prev => {
       if (prev.phase !== 'playing') return prev;
@@ -538,5 +698,5 @@ export function useGameState(initialState: GameState) {
     });
   }, []);
 
-  return { state, setState, handleSquareClick, handleSquareHover, handleSquareLeave, handleCancelSelection, handleEndTurn, handleContinue, handleHandoffAction, handleHandoffTarget };
+  return { state, setState, handleSquareClick, handleSquareHover, handleSquareLeave, handleCancelSelection, handleEndTurn, handleContinue, handleHandoffAction, handleHandoffTarget, handlePassAction, handlePassTarget };
 }

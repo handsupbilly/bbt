@@ -8,9 +8,14 @@ interface Props {
 
 function pct(p: number) { return `${(p * 100).toFixed(1)}%`; }
 function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b); }
+const BAND_LABEL: Record<string, string> = {
+  quick: 'Quick', short: 'Short', long: 'Long', bomb: 'Bomb',
+};
+
 function cumFraction(moves: LeaderboardEntry['moves']): string {
   let num = 1, den = 1;
   for (const m of moves) {
+    if (m.passTarget !== undefined)  { num *= (7 - m.passTarget);  den *= 6; continue; }
     if (m.catchTarget !== undefined) { num *= (7 - m.catchTarget); den *= 6; continue; }
     if (m.isGfi) { num *= 5; den *= 6; }
     if (m.dodgeTarget !== null) { num *= (7 - m.dodgeTarget); den *= 6; }
@@ -21,17 +26,21 @@ function cumFraction(moves: LeaderboardEntry['moves']): string {
 function colLabel(col: number) { return String.fromCharCode(65 + col); }
 function posLabel(p: { col: number; row: number }) { return `${colLabel(p.col)}${p.row + 1}`; }
 function actionLabel(m: LeaderboardEntry['moves'][number]): string {
+  if (m.passTarget !== undefined && m.rangeBand)
+    return `${BAND_LABEL[m.rangeBand]} Pass ${m.passTarget}+`;
+  if (m.catchTarget !== undefined && m.passTarget === undefined && m.receiverName === undefined)
+    return `Catch ${m.catchTarget}+`;   // pass-catch
   if (m.catchTarget !== undefined) return `Handoff ${m.catchTarget}+`;
   if (m.isGfi && m.dodgeTarget !== null) return `GFI 2+ · Dodge ${m.dodgeTarget}+`;
   if (m.isGfi) return 'Go For It 2+';
   return `Dodge ${m.dodgeTarget}+`;
 }
 function playerName(m: LeaderboardEntry['moves'][number]): string {
-  if (m.catchTarget !== undefined && m.receiverName) return `${m.pieceName} → ${m.receiverName}`;
+  if (m.receiverName) return `${m.pieceName} → ${m.receiverName}`;
   return m.pieceName;
 }
 function playerRole(m: LeaderboardEntry['moves'][number]): string {
-  const role = (m.catchTarget !== undefined && m.receiverRole) ? m.receiverRole : m.pieceRole;
+  const role = m.pieceRole;
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
 

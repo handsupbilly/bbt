@@ -202,6 +202,10 @@ body,
 .legend__item--free  { background: rgba(200, 180, 0, 0.40);  color: #f0e060; }
 .legend__item--gfi   { background: rgba(40, 120, 255, 0.35); color: #90c8ff; }
 .legend__item--dodge { background: rgba(220, 120, 0, 0.45);  color: #f0b060; }
+.legend__item--range-quick { background: rgba(255, 240, 60, 0.30);  color: #f0e860; }
+.legend__item--range-short { background: rgba(80, 200, 80, 0.35);   color: #90e890; }
+.legend__item--range-long  { background: rgba(255, 140, 30, 0.40);  color: #f0b060; }
+.legend__item--range-bomb  { background: rgba(220, 50, 50, 0.40);   color: #f09090; }
 
 /* ── Three-column game area ──────────────────────────────────────────── */
 .game-area {

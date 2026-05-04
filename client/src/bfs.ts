@@ -140,6 +140,76 @@ export function dodgeTargetAt(dest: Position, ag: number, opponentPositions: Pos
   return Math.min(6, Math.max(2, base + tzCount));
 }
 
+// ── Passing ───────────────────────────────────────────────────────────────────
+
+/** Chebyshev distance (max of col/row deltas — matches BB grid movement). */
+export function chebyshevDist(a: Position, b: Position): number {
+  return Math.max(Math.abs(a.col - b.col), Math.abs(a.row - b.row));
+}
+
+/** Range band for a given Chebyshev distance. Returns null if out of range (>13). */
+export function rangeBandForDist(dist: number): 'quick' | 'short' | 'long' | 'bomb' | null {
+  if (dist <= 3)  return 'quick';
+  if (dist <= 6)  return 'short';
+  if (dist <= 9)  return 'long';
+  if (dist <= 13) return 'bomb';
+  return null;
+}
+
+/** Pass roll modifier for a range band (+1 quick, 0 short, -1 long, -2 bomb). */
+export function rangeModifier(band: 'quick' | 'short' | 'long' | 'bomb'): number {
+  switch (band) {
+    case 'quick': return 1;
+    case 'short': return 0;
+    case 'long':  return -1;
+    case 'bomb':  return -2;
+  }
+}
+
+/**
+ * Pass target number for a passer throwing from `passerPos` to `targetPos`.
+ *
+ * Formula: max(2, min(6, pa - rangeModifier + tzCount))
+ *   pa            = passer's passing ability stat
+ *   rangeModifier = +1 quick, 0 short, -1 long, -2 bomb
+ *   tzCount       = opposing tackle zones covering the passer's square
+ *
+ * Returns null if target is out of range (>13 squares).
+ */
+export function passTargetAt(
+  passerPos: Position,
+  passerPa: number,
+  targetPos: Position,
+  opponentPositions: Position[],
+): number | null {
+  const dist = chebyshevDist(passerPos, targetPos);
+  const band = rangeBandForDist(dist);
+  if (!band) return null;
+
+  const mod = rangeModifier(band);
+  const tzCount = opponentPositions.filter(op =>
+    neighbours(op).some(n => n.col === passerPos.col && n.row === passerPos.row)
+  ).length;
+
+  return Math.min(6, Math.max(2, passerPa - mod + tzCount));
+}
+
+/**
+ * Compute all throwable squares from `passerPos` and their range bands.
+ * Returns a Map from position key → band for every square within 13 squares.
+ */
+export function computePassRange(passerPos: Position): Map<string, 'quick' | 'short' | 'long' | 'bomb'> {
+  const result = new Map<string, 'quick' | 'short' | 'long' | 'bomb'>();
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      const pos: Position = { col: c, row: r };
+      const band = rangeBandForDist(chebyshevDist(passerPos, pos));
+      if (band) result.set(key(pos), band);
+    }
+  }
+  return result;
+}
+
 /**
  * Compute the catch target for a handoff received at `receiverPos`.
  *

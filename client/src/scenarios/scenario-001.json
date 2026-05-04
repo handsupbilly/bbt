@@ -9,7 +9,7 @@
       "team": "human",
       "role": "thrower",
       "name": "Aldric Swiftfoot",
-      "ma": 6, "st": 3, "ag": 3, "av": 8,
+      "ma": 6, "st": 3, "ag": 3, "pa": 3, "av": 8,
       "skills": ["Block"],
       "position": { "col": 7, "row": 6 },
       "hasBall": true
@@ -19,7 +19,7 @@
       "team": "orc",
       "role": "blocker",
       "name": "Grukk Ironjaw",
-      "ma": 4, "st": 3, "ag": 3, "av": 9,
+      "ma": 4, "st": 3, "ag": 3, "pa": 6, "av": 9,
       "skills": ["Animosity"],
       "position": { "col": 6, "row": 4 },
       "hasBall": false
@@ -29,7 +29,7 @@
       "team": "orc",
       "role": "blocker",
       "name": "Muzgash Skullkrak",
-      "ma": 4, "st": 3, "ag": 3, "av": 9,
+      "ma": 4, "st": 3, "ag": 3, "pa": 6, "av": 9,
       "skills": ["Animosity"],
       "position": { "col": 8, "row": 4 },
       "hasBall": false
